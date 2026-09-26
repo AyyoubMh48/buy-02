@@ -1,0 +1,248 @@
+services:
+
+  # ---------- Per-service databases ----------
+  # Each service gets its own Mongo container, own volume, and own private
+  # network shared only with that one service. A compromised or buggy
+  # service container has no network route to another service's database —
+  # not just missing credentials, an actual unreachable host.
+
+  product-mongodb:
+    image: mongo:7
+    container_name: product-mongodb
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+      - MONGO_DATABASE=${PRODUCT_MONGO_DATABASE}
+      - MONGO_USERNAME=${PRODUCT_MONGO_USERNAME}
+      - MONGO_PASSWORD=${PRODUCT_MONGO_PASSWORD}
+    volumes:
+      - product_mongo_data:/data/db
+      - ./docker/mongo/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - product-db-network
+    healthcheck:
+      test: ["CMD", "mongosh", "admin", "-u", "${MONGO_ROOT_USERNAME}", "-p", "${MONGO_ROOT_PASSWORD}", "--eval", "db.runCommand({ ping: 1 })"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  media-mongodb:
+    image: mongo:7
+    container_name: media-mongodb
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+      - MONGO_DATABASE=${MEDIA_MONGO_DATABASE}
+      - MONGO_USERNAME=${MEDIA_MONGO_USERNAME}
+      - MONGO_PASSWORD=${MEDIA_MONGO_PASSWORD}
+    volumes:
+      - media_mongo_data:/data/db
+      - ./docker/mongo/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - media-db-network
+    healthcheck:
+      test: ["CMD", "mongosh", "admin", "-u", "${MONGO_ROOT_USERNAME}", "-p", "${MONGO_ROOT_PASSWORD}", "--eval", "db.runCommand({ ping: 1 })"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  user-mongodb:
+    image: mongo:7
+    container_name: user-mongodb
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+      - MONGO_DATABASE=${USER_MONGO_DATABASE}
+      - MONGO_USERNAME=${USER_MONGO_USERNAME}
+      - MONGO_PASSWORD=${USER_MONGO_PASSWORD}
+    volumes:
+      - user_mongo_data:/data/db
+      - ./docker/mongo/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - user-db-network
+    healthcheck:
+      test: ["CMD", "mongosh", "admin", "-u", "${MONGO_ROOT_USERNAME}", "-p", "${MONGO_ROOT_PASSWORD}", "--eval", "db.runCommand({ ping: 1 })"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  kafka:
+    image: confluentinc/cp-kafka:7.7.1
+    container_name: buy01-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - buy01-network
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  # ---------- Discovery & Gateway ----------
+
+  discovery:
+    build:
+      context: ./discovery
+      dockerfile: Dockerfile
+    container_name: buy01-discovery
+    networks:
+      - buy01-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8761/actuator/health | grep UP || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    container_name: buy01-gateway
+    ports:
+      - "8443:8080"   # the only backend service reachable from the host
+    volumes:
+      - ./certs/gateway-keystore.p12:/run/secrets/gateway-keystore.p12:ro
+    environment:
+      - SERVER_SSL_ENABLED=true
+      - SERVER_SSL_KEY_STORE=file:/run/secrets/gateway-keystore.p12
+      - SERVER_SSL_KEY_STORE_PASSWORD=${SERVER_SSL_KEY_STORE_PASSWORD}
+      - SERVER_SSL_KEY_STORE_TYPE=PKCS12
+      - SERVER_SSL_KEY_ALIAS=gateway
+      - EUREKA_CLIENT_SERVICE_URL=http://discovery:8761/eureka/
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery:8761/eureka/
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      discovery:
+        condition: service_healthy
+    networks:
+      - buy01-network
+
+  # ---------- Application services ----------
+  # Each app service joins buy01-network (to reach discovery/gateway/each
+  # other) AND its own private db-network (to reach only its own Mongo).
+
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: buy01-user-service
+    environment:
+      - EUREKA_CLIENT_SERVICE_URL=http://discovery:8761/eureka/
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery:8761/eureka/
+      - MONGODB_URI=mongodb://${USER_MONGO_USERNAME}:${USER_MONGO_PASSWORD}@user-mongodb:27017/${USER_MONGO_DATABASE}?authSource=${USER_MONGO_DATABASE}
+      - SPRING_MONGODB_URI=mongodb://${USER_MONGO_USERNAME}:${USER_MONGO_PASSWORD}@user-mongodb:27017/${USER_MONGO_DATABASE}?authSource=${USER_MONGO_DATABASE}
+      - SPRING_DATA_MONGODB_URI=mongodb://${USER_MONGO_USERNAME}:${USER_MONGO_PASSWORD}@user-mongodb:27017/${USER_MONGO_DATABASE}?authSource=${USER_MONGO_DATABASE}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRATION=${JWT_EXPIRATION}
+    depends_on:
+      discovery:
+        condition: service_healthy
+      user-mongodb:
+        condition: service_healthy
+    networks:
+      - buy01-network
+      - user-db-network
+
+  product-service:
+    build:
+      context: ./product-service
+      dockerfile: Dockerfile
+    container_name: buy01-product-service
+    environment:
+      - EUREKA_CLIENT_SERVICE_URL=http://discovery:8761/eureka/
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery:8761/eureka/
+      - MONGODB_URI=mongodb://${PRODUCT_MONGO_USERNAME}:${PRODUCT_MONGO_PASSWORD}@product-mongodb:27017/${PRODUCT_MONGO_DATABASE}?authSource=${PRODUCT_MONGO_DATABASE}
+      - SPRING_MONGODB_URI=mongodb://${PRODUCT_MONGO_USERNAME}:${PRODUCT_MONGO_PASSWORD}@product-mongodb:27017/${PRODUCT_MONGO_DATABASE}?authSource=${PRODUCT_MONGO_DATABASE}
+      - SPRING_DATA_MONGODB_URI=mongodb://${PRODUCT_MONGO_USERNAME}:${PRODUCT_MONGO_PASSWORD}@product-mongodb:27017/${PRODUCT_MONGO_DATABASE}?authSource=${PRODUCT_MONGO_DATABASE}
+      - MEDIA_SERVICE_URL=http://media-service:8083/media/images
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    depends_on:
+      discovery:
+        condition: service_healthy
+      product-mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - buy01-network
+      - product-db-network
+
+  media-service:
+    build:
+      context: ./media-service
+      dockerfile: Dockerfile
+    container_name: buy01-media-service
+    environment:
+      - SERVER_PORT=8083
+      - EUREKA_CLIENT_SERVICE_URL=http://discovery:8761/eureka/
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery:8761/eureka/
+      - MONGODB_URI=mongodb://${MEDIA_MONGO_USERNAME}:${MEDIA_MONGO_PASSWORD}@media-mongodb:27017/${MEDIA_MONGO_DATABASE}?authSource=${MEDIA_MONGO_DATABASE}
+      - SPRING_MONGODB_URI=mongodb://${MEDIA_MONGO_USERNAME}:${MEDIA_MONGO_PASSWORD}@media-mongodb:27017/${MEDIA_MONGO_DATABASE}?authSource=${MEDIA_MONGO_DATABASE}
+      - SPRING_DATA_MONGODB_URI=mongodb://${MEDIA_MONGO_USERNAME}:${MEDIA_MONGO_PASSWORD}@media-mongodb:27017/${MEDIA_MONGO_DATABASE}?authSource=${MEDIA_MONGO_DATABASE}
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    depends_on:
+      discovery:
+        condition: service_healthy
+      media-mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - buy01-network
+      - media-db-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: buy01-frontend
+    ports:
+      - "4200:443"
+    volumes:
+      - ./certs/gateway-keystore.p12:/run/secrets/gateway-keystore.p12:ro
+      - ./certs/gateway-keystore.crt:/etc/nginx/certs/gateway-keystore.crt:ro
+      - ./certs/gateway-keystore.key:/etc/nginx/certs/gateway-keystore.key:ro
+    depends_on:
+      - gateway
+    networks:
+      - buy01-network
+
+volumes:
+  product_mongo_data:
+  media_mongo_data:
+  user_mongo_data:
+
+networks:
+  buy01-network:
+    driver: bridge
+  product-db-network:
+    driver: bridge
+  media-db-network:
+    driver: bridge
+  user-db-network:
+    driver: bridge

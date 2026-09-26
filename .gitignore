@@ -1,0 +1,4 @@
+/.env
+certs/gateway-keystore.p12
+certs/gateway-keystore.crt
+certs/gateway-keystore.key

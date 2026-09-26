@@ -1,0 +1,107 @@
+<div class="container-xl py-4 profile-container">
+  <!-- Loading State -->
+  <div *ngIf="loading()" class="buy-card p-4 profile-loading" aria-label="Loading profile">
+    <div class="skeleton profile-skeleton-avatar mb-3"></div>
+    <div class="skeleton profile-skeleton-line mb-2"></div>
+    <div class="skeleton profile-skeleton-line profile-skeleton-line-short"></div>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="!loading() && errorMessage()" class="alert alert-danger" role="alert">
+    {{ errorMessage() }}
+  </div>
+
+  <!-- Maker / Vendor Bio Showcase (Lead with Photography & Identity) -->
+  <section *ngIf="!loading() && profile() as user" class="maker-bio-showcase">
+    <!-- Bio Hero Card -->
+    <div class="buy-card p-4 p-md-5 mb-4 maker-hero-card">
+      <div class="row align-items-center g-4">
+        <!-- Hero Photography / Portrait -->
+        <div class="col-md-auto">
+          <div class="maker-avatar-wrapper">
+            <img *ngIf="user.avatarUrl" [src]="user.avatarUrl" [alt]="getDisplayName(user) + ' portrait'" class="maker-portrait-img">
+            <div *ngIf="!user.avatarUrl" class="maker-portrait-fallback">
+              {{ getInitials(user) }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Identity & Bio Content -->
+        <div class="col-md">
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <span class="buy-badge buy-badge-neutral">
+              {{ user.role === 'SELLER' ? 'Verified merchant workshop' : 'Verified collector' }}
+            </span>
+            <span class="small text-muted" *ngIf="user.username">@{{ user.username }}</span>
+          </div>
+
+          <h1 class="h2 mb-2 maker-name">{{ getDisplayName(user) }}</h1>
+          
+          <p class="maker-bio-copy text-muted mb-4">
+            {{ user.role === 'SELLER' 
+              ? 'Independent maker and merchant studio within the BUY01 atelier network. Creating, managing, and shipping certified pieces with direct studio provenance.' 
+              : 'Registered collector and patron. Curating acquisitions and managing inquiries across the BUY01 marketplace network.' }}
+          </p>
+
+          <div class="d-flex align-items-center gap-3">
+            <!-- Single Brass CTA -->
+            <button type="button" class="btn btn-primary" (click)="openEditDialog()">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
+              </svg>
+              Edit studio bio
+              {{ user.role === 'SELLER' ? 'Edit studio bio' : 'Edit profile' }}
+            </button>
+            <span class="text-muted small">{{ user.email }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Below-the-fold: Account & Access Parameters -->
+    <div class="buy-card p-4 maker-technical-panel">
+      <div class="border-bottom pb-3 mb-3">
+        <h2 class="h5 mb-1">Account credentials & access</h2>
+        <p class="text-muted small mb-0">System identifiers and permissions associated with your authentication profile.</p>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="maker-detail-block">
+            <span class="maker-detail-label">Username handle</span>
+            <span class="maker-detail-value">{{ user.username || 'Unassigned' }}</span>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="maker-detail-block">
+            <span class="maker-detail-label">Communication email</span>
+            <span class="maker-detail-value">{{ user.email }}</span>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="maker-detail-block">
+            <span class="maker-detail-label">Network clearance</span>
+            <span class="maker-detail-value">{{ user.role === 'SELLER' ? 'Merchant tools and media archive' : 'Exhibition feed & catalog' }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Edit Profile Dialog -->
+  <app-update-profile-dialog
+    *ngIf="dialogOpen() && profile() as user"
+    [user]="user"
+    (closed)="closeEditDialog()"
+    (saved)="onProfileSaved($event)">
+  </app-update-profile-dialog>
+
+  <!-- Toast Container -->
+  <div class="buy-toast-container" *ngIf="toastMessage()">
+    <div class="buy-toast" role="status">
+      <span>{{ toastMessage() }}</span>
+    </div>
+  </div>
+</div>

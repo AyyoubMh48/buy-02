@@ -1,0 +1,51 @@
+<div class="buy-modal-backdrop" (click)="close()" role="dialog" aria-modal="true" aria-labelledby="profileDialogTitle">
+  <div class="buy-modal-content profile-dialog" (click)="$event.stopPropagation()">
+    <div class="profile-dialog-header">
+      <div>
+        <span class="buy-badge buy-badge-neutral mb-2">{{ user?.role === 'SELLER' ? 'Studio identity' : 'Collector identity' }}</span>
+        <h2 id="profileDialogTitle" class="h5 mb-0">{{ user?.role === 'SELLER' ? 'Update studio bio' : 'Update profile' }}</h2>
+      </div>
+      <button type="button" class="btn-close" (click)="close()" [disabled]="saving() || uploadingAvatar()" aria-label="Close dialog"></button>
+    </div>
+
+    <form [formGroup]="profileForm" (ngSubmit)="onSubmit()" class="profile-dialog-body">
+      <div *ngIf="errorMessage()" class="alert alert-danger py-2 small" role="alert">{{ errorMessage() }}</div>
+
+      <!-- Avatar Upload: Sellers only -->
+      <div class="profile-dialog-avatar-row" *ngIf="user?.role === 'SELLER'">
+        <div class="profile-dialog-avatar">
+          <img *ngIf="avatarPreview()" [src]="avatarPreview()" alt="Portrait preview">
+          <svg *ngIf="!avatarPreview()" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>
+          </svg>
+        </div>
+        <div class="flex-grow-1">
+          <label class="form-label" for="profileAvatar">Portrait photography</label>
+          <input id="profileAvatar" type="file" class="form-control form-control-sm" accept="image/*" (change)="onAvatarSelect($event)" [disabled]="saving() || uploadingAvatar()">
+          <div class="text-muted small mt-1">JPEG, PNG, or WebP up to 2 MB.</div>
+          <div *ngIf="uploadingAvatar()" class="text-primary small mt-1"><span class="spinner-border spinner-border-sm me-1" role="status"></span>Uploading image...</div>
+        </div>
+      </div>
+
+      <div>
+        <label class="form-label" for="profileUsername">{{ user?.role === 'SELLER' ? 'Studio handle' : 'Username handle' }} <span class="text-danger">*</span></label>
+        <input id="profileUsername" type="text" class="form-control" formControlName="username" autocomplete="username">
+        <div *ngIf="profileForm.controls['username'].touched && profileForm.controls['username'].invalid" class="text-danger small mt-1">Please enter at least 2 characters.</div>
+      </div>
+
+      <div>
+        <span class="form-label d-block">Account email</span>
+        <div class="profile-readonly-field">{{ user.email }}</div>
+        <div class="text-muted small mt-1">Account email is managed at the system level.</div>
+      </div>
+
+      <div class="profile-dialog-actions border-top pt-3">
+        <button type="button" class="btn btn-secondary" (click)="close()" [disabled]="saving() || uploadingAvatar()">Cancel</button>
+        <button type="submit" class="btn btn-primary" [disabled]="saving() || uploadingAvatar()">
+          <span *ngIf="saving()" class="spinner-border spinner-border-sm me-1" role="status"></span>
+          {{ saving() ? 'Saving...' : 'Save modifications' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

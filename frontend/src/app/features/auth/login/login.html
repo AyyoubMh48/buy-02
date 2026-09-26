@@ -1,0 +1,74 @@
+<div class="atelier-auth-container">
+  <div class="atelier-auth-floating-form">
+    <!-- Header -->
+    <div class="atelier-auth-header mb-4">
+      <span class="buy-badge buy-badge-neutral mb-2">Member access</span>
+      <h1 class="h3 mb-2">Sign in to BUY01</h1>
+      <p class="text-muted small mb-0">Enter your credentials to access your workshop or collection.</p>
+    </div>
+
+    <!-- Error Alert -->
+    <div *ngIf="errorMessage()" class="alert alert-danger p-3 mb-4 rounded d-flex align-items-center gap-2 small" role="alert">
+      <span>{{ errorMessage() }}</span>
+    </div>
+
+    <!-- Login Form -->
+    <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
+      <!-- Email Input -->
+      <div class="mb-3">
+        <label class="form-label" for="loginEmail">Email address</label>
+        <input 
+          id="loginEmail"
+          type="email" 
+          class="form-control" 
+          formControlName="email" 
+          placeholder="curator@atelier.com"
+          autocomplete="email">
+        <div class="text-danger small mt-1" *ngIf="loginForm.get('email')?.touched && loginForm.get('email')?.invalid">
+          Please enter a valid email address.
+        </div>
+      </div>
+
+      <!-- Password Input with Toggle -->
+      <div class="mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <label class="form-label mb-0" for="loginPassword">Password</label>
+        </div>
+        <div class="input-group">
+          <input 
+            id="loginPassword"
+            [type]="showPassword() ? 'text' : 'password'" 
+            class="form-control border-end-0" 
+            formControlName="password" 
+            placeholder="Account password"
+            autocomplete="current-password">
+          <button 
+            type="button" 
+            class="btn btn-outline-secondary border-start-0" 
+            (click)="togglePassword()"
+            [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'">
+            <span class="small">{{ showPassword() ? 'Hide' : 'Show' }}</span>
+          </button>
+        </div>
+        <div class="text-danger small mt-1" *ngIf="loginForm.get('password')?.touched && loginForm.get('password')?.invalid">
+          Password is required.
+        </div>
+      </div>
+
+      <!-- Single Brass CTA -->
+      <button 
+        type="submit" 
+        class="btn btn-primary w-100 py-2" 
+        [disabled]="loading()">
+        <span *ngIf="loading()" class="spinner-border spinner-border-sm me-2" role="status"></span>
+        {{ loading() ? 'Authenticating...' : 'Sign in' }}
+      </button>
+    </form>
+
+    <!-- Footer Link -->
+    <div class="mt-4 pt-3 border-top text-center text-muted small">
+      New to the platform? 
+      <a routerLink="/register" class="text-primary ms-1">Create an account</a>
+    </div>
+  </div>
+</div>

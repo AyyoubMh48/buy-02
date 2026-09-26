@@ -1,0 +1,37 @@
+server:
+  port: ${SERVER_PORT:8083}
+
+spring:
+  application:
+    name: media-service
+  data:
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27018/media_db}
+      # uri: mongodb://localhost:27017/buy01_media
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      max-request-size: 2MB
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+storage:
+  upload-dir: ./uploads
+
+eureka:
+  client:
+    enabled: true
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICE_URL:http://localhost:8761/eureka/}
+#spring.data.mongodb.uri=mongodb://admin:password123@localhost:27017/letsplay_db?authSource=admin
+
+cloudinary:
+  cloud-name: ${CLOUDINARY_CLOUD_NAME:bmgfgqae}
+  api-key: ${CLOUDINARY_API_KEY:232899191186292}
+  api-secret: ${CLOUDINARY_API_SECRET:k0TYmIcnimwalIhjMQ1zCH4-zxQ}

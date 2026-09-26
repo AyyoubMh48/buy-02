@@ -1,0 +1,35 @@
+.atelier-auth-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(80vh - 120px);
+  padding: 3rem 1.5rem;
+  background-color: var(--bg-primary);
+}
+
+.atelier-auth-floating-form {
+  width: 100%;
+  background: transparent;
+}
+
+.atelier-auth-header {
+  text-align: left;
+}
+
+.role-select-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--bg-surface-alt) !important;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.role-select-card:hover {
+  border-color: var(--text-muted) !important;
+}
+
+.role-select-card.active-role {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 1px var(--accent) !important;
+}

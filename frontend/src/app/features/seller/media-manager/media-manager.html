@@ -1,0 +1,185 @@
+<div class="container-xl py-4 media-manager-container">
+  <!-- Title Header -->
+  <header class="mb-4">
+    <span class="buy-badge buy-badge-neutral mb-1">Storage vault</span>
+    <h1 class="h3 mb-1">Media archive & darkroom</h1>
+    <p class="text-muted small mb-0">Develop, store, and manage photographic assets for your workshop catalog.</p>
+  </header>
+
+  <!-- Physical Space Upload Bay (Darkroom / Loading Bay) -->
+  <section class="buy-card atelier-darkroom-bay p-4 mb-5">
+    <div class="d-flex align-items-center justify-content-between mb-3 border-bottom pb-3">
+      <div class="d-flex align-items-center gap-3">
+        <div class="darkroom-aperture">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="14.31" y1="8" x2="20.05" y2="17.94"></line>
+            <line x1="9.69" y1="8" x2="21.17" y2="8"></line>
+            <line x1="7.38" y1="12" x2="13.12" y2="2.06"></line>
+            <line x1="9.69" y1="16" x2="3.95" y2="6.06"></line>
+            <line x1="14.31" y1="16" x2="2.83" y2="16"></line>
+            <line x1="16.62" y1="12" x2="10.88" y2="21.94"></line>
+          </svg>
+        </div>
+        <div>
+          <h2 class="h5 mb-0">Asset intake bay</h2>
+          <span class="text-muted small">Physical loading station for high-resolution imagery</span>
+        </div>
+      </div>
+      <span class="buy-badge buy-badge-neutral">Ready for intake</span>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-lg-7">
+        <div class="darkroom-intake-well p-4 border rounded">
+          <label class="form-label mb-2 d-block" for="mediaFileInput">Select raw image file</label>
+          <input 
+            id="mediaFileInput"
+            type="file" 
+            class="form-control mb-3" 
+            accept="image/*" 
+            (change)="onFileSelected($event)">
+          
+          <div class="text-muted small d-flex flex-column gap-1">
+            <span>Supported formats: JPEG, PNG, WebP (up to 2 MB)</span>
+            <span>Images are cataloged into workshop storage upon upload</span>
+          </div>
+        </div>
+
+        <div *ngIf="errorMessage()" class="alert alert-danger mt-3 mb-0 py-2 small">
+          {{ errorMessage() }}
+        </div>
+      </div>
+
+      <!-- File Pre-Upload Inspection Plate -->
+      <div class="col-lg-5">
+        <div class="darkroom-inspection-plate border rounded p-3 h-100 d-flex flex-column align-items-center justify-content-center text-center">
+          <div *ngIf="previewUrl()" class="w-100">
+            <div class="media-upload-preview mb-2 rounded overflow-hidden">
+              <img [src]="previewUrl()" class="w-100 h-100 object-fit-cover" alt="Selected preview">
+            </div>
+            <div class="small fw-semibold text-truncate mb-3">{{ selectedFile()?.name }}</div>
+            <div class="d-flex gap-2 justify-content-center">
+              <!-- Single Brass CTA -->
+              <button 
+                class="btn btn-primary btn-sm px-3" 
+                [disabled]="uploading()" 
+                (click)="upload()">
+                <span *ngIf="uploading()" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                {{ uploading() ? 'Processing...' : 'Intake asset' }}
+              </button>
+              <button class="btn btn-secondary btn-sm" (click)="clearSelection()" [disabled]="uploading()">
+                Clear
+              </button>
+            </div>
+          </div>
+
+          <div *ngIf="!previewUrl()" class="text-muted py-4">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+            <div class="small mt-2">Intake inspection stage is idle</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Asset Gallery Header -->
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h2 class="h5 mb-0">Archived photographic assets</h2>
+      <span class="text-muted small">Exhibition-grade assets stored in studio library</span>
+    </div>
+    <span class="buy-badge buy-badge-neutral" *ngIf="mediaList().length > 0">{{ mediaList().length }} assets</span>
+  </div>
+
+  <!-- Empty State -->
+  <div *ngIf="mediaList().length === 0" class="buy-card p-5 text-center my-3 text-muted">
+    <h3 class="h6 mb-1">Archive is empty</h3>
+    <p class="small text-muted mb-0">Load photographic assets via the intake bay above to populate the library.</p>
+  </div>
+
+  <!-- Gallery Grid (Asymmetric Wall Language) -->
+  <div class="atelier-media-grid" *ngIf="mediaList().length > 0">
+    <div 
+      class="atelier-media-tile" 
+      *ngFor="let item of mediaList(); let i = index"
+      [class.tile-feature]="i % 6 === 0"
+      [class.tile-standard]="i % 6 !== 0">
+      
+      <article class="buy-card buy-card-hover h-100 d-flex flex-column overflow-hidden media-gallery-card">
+        <!-- Full Bleed Photography -->
+        <div 
+          class="media-thumb-wrapper position-relative" 
+          (click)="openPreview(item)" 
+          role="button" 
+          tabindex="0" 
+          (keydown.enter)="openPreview(item)" 
+          aria-label="Inspect asset">
+          <img [src]="item.url" class="w-100 h-100 object-fit-cover" [alt]="item.filename" loading="lazy">
+          <div class="media-zoom-overlay">
+            <span class="small">Inspect</span>
+          </div>
+        </div>
+
+        <div class="p-3 d-flex flex-column flex-grow-1 justify-content-between">
+          <div class="mb-2">
+            <div class="small fw-semibold text-truncate mb-1" [title]="item.filename">
+              {{ item.filename }}
+            </div>
+            <div class="text-muted small">
+              <span *ngIf="item.size">{{ (item.size / 1024) | number:'1.0-0' }} KB</span>
+            </div>
+          </div>
+
+          <button 
+            type="button" 
+            class="btn btn-outline-secondary btn-sm w-100" 
+            (click)="copyUrl(item.url)">
+            Copy URL
+          </button>
+        </div>
+      </article>
+    </div>
+  </div>
+
+  <!-- Full-Size Image Preview Modal (Inspection Table) -->
+  <div 
+    class="buy-modal-backdrop" 
+    *ngIf="previewModalItem() as modalItem"
+    (click)="closePreview()"
+    role="dialog"
+    aria-modal="true"
+    [attr.aria-label]="modalItem.filename">
+    
+    <div class="buy-modal-content p-4" style="max-width: 640px;" (click)="$event.stopPropagation()">
+      <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+        <span class="text-truncate fw-semibold small" style="max-width: 480px;">{{ modalItem.filename }}</span>
+        <button type="button" class="btn-close" (click)="closePreview()" aria-label="Close image preview"></button>
+      </div>
+      
+      <div class="rounded border overflow-hidden mb-3 darkroom-modal-frame" style="max-height: 480px;">
+        <img [src]="modalItem.url" class="img-fluid w-100" style="max-height: 440px; object-fit: contain;" [alt]="modalItem.filename">
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center">
+        <a [href]="modalItem.url" target="_blank" rel="noopener noreferrer" class="btn btn-outline-secondary btn-sm">
+          Open raw source
+        </a>
+        <button class="btn btn-primary btn-sm" (click)="copyUrl(modalItem.url)">
+          Copy URL
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div class="buy-toast-container" *ngIf="toastMessage()">
+    <div class="buy-toast">
+      <span>{{ toastMessage() }}</span>
+    </div>
+  </div>
+</div>

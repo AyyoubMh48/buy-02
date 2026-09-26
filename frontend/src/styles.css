@@ -1,0 +1,596 @@
+/* ==========================================================================
+   BUY01 ATELIER: DESIGN SYSTEM & GLOBAL TOKENS
+   Dark Atelier / Gallery Mode Architecture
+   ========================================================================== */
+
+:root {
+  /* Core Color Tokens (Defined exclusively here — never hardcoded elsewhere) */
+  --bg-primary:     #121110;   /* charcoal, main background */
+  --bg-surface:     #1A1917;   /* slightly lifted charcoal for cards/panels (depth via contrast) */
+  --bg-surface-alt: #3A3733;   /* warm grey, borders/dividers/secondary surfaces */
+  --text-primary:   #F1EDE6;   /* bone */
+  --text-muted:     #A8A29A;   /* muted bone, secondary text/labels */
+  --accent:         #C9A66B;   /* muted brass — the ONLY accent color in the system */
+  --danger:         #B4482E;   /* muted rust, not a bright red */
+  --success:        #7C8471;   /* muted sage */
+
+  /* Typography Families */
+  --font-display: 'Barlow Condensed', 'Aktiv Grotesk Condensed', 'Neue Montreal', 'Arial Narrow', sans-serif;
+  --font-body:    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Type Scale (Modest ~1.25 ratio) */
+  --type-xs:   0.75rem;     /* 12px */
+  --type-sm:   0.875rem;    /* 14px */
+  --type-base: 1rem;        /* 16px */
+  --type-md:   1.25rem;     /* 20px */
+  --type-lg:   1.5625rem;   /* 25px */
+  --type-xl:   1.953rem;    /* 31.25px */
+  --type-2xl:  2.441rem;    /* 39px */
+  --type-3xl:  3.052rem;    /* 48.8px */
+
+  /* Craft Radii (Subtle, tactile, sharp atelier edges) */
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-pill: 9999px;
+
+  /* Focus & Elevation */
+  --focus-ring: 0 0 0 2px var(--accent);
+  --focus-ring-offset: 2px;
+
+  /* Purposeful Fast Transitions */
+  --transition-fast: 0.12s ease-out;
+  --transition-base: 0.18s ease-out;
+
+  /* Backwards Compatibility / Shared Token Aliases */
+  --buy-brand-primary: var(--accent);
+  --buy-brand-primary-hover: var(--accent);
+  --buy-brand-primary-light: var(--bg-surface);
+  --buy-brand-primary-border: var(--bg-surface-alt);
+  --buy-bg-canvas: var(--bg-primary);
+  --buy-bg-surface: var(--bg-surface);
+  --buy-bg-muted: var(--bg-surface);
+  --buy-bg-alt: var(--bg-surface-alt);
+  --buy-text-primary: var(--text-primary);
+  --buy-text-secondary: var(--text-primary);
+  --buy-text-muted: var(--text-muted);
+  --buy-border: var(--bg-surface-alt);
+  --buy-border-strong: var(--bg-surface-alt);
+  --buy-success: var(--success);
+  --buy-success-bg: var(--bg-surface);
+  --buy-success-border: var(--success);
+  --buy-warning: var(--accent);
+  --buy-warning-bg: var(--bg-surface);
+  --buy-warning-border: var(--accent);
+  --buy-danger: var(--danger);
+  --buy-danger-bg: var(--bg-surface);
+  --buy-danger-border: var(--danger);
+  --buy-shadow-xs: none;
+  --buy-shadow-sm: none;
+  --buy-shadow-md: none;
+  --buy-shadow-lg: none;
+  --buy-shadow-xl: none;
+  --buy-shadow-card-hover: none;
+  --buy-shadow-modal: none;
+  --buy-focus-ring: var(--focus-ring);
+  --buy-radius-xs: var(--radius-xs);
+  --buy-radius-sm: var(--radius-sm);
+  --buy-radius-md: var(--radius-md);
+  --buy-radius-lg: var(--radius-lg);
+  --buy-radius-xl: var(--radius-lg);
+  --buy-radius-pill: var(--radius-pill);
+}
+
+/* ==========================================================================
+   GLOBAL RESET & BASE SETUP
+   ========================================================================== */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+  background-color: var(--bg-primary);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  font-family: var(--font-body);
+  font-size: var(--type-base);
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
+}
+
+/* Typography Hierarchy (Sentence case, tight display tracking, no single word bolding) */
+h1, h2, h3, h4, h5, h6,
+.h1, .h2, .h3, .h4, .h5, .h6 {
+  font-family: var(--font-display);
+  color: var(--text-primary);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-top: 0;
+  line-height: 1.15;
+  text-transform: none;
+}
+
+h1, .h1 { font-size: var(--type-3xl); }
+h2, .h2 { font-size: var(--type-2xl); }
+h3, .h3 { font-size: var(--type-xl); }
+h4, .h4 { font-size: var(--type-lg); }
+h5, .h5 { font-size: var(--type-md); }
+h6, .h6 { font-size: var(--type-base); }
+
+p {
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+a {
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+/* Keyboard Accessible Focus States (Using Muted Brass) */
+:focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: var(--focus-ring-offset) !important;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none !important;
+  box-shadow: var(--focus-ring) !important;
+  border-color: var(--accent) !important;
+}
+
+/* ==========================================================================
+   BUTTONS (Centralized Atelier Components)
+   ========================================================================== */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: var(--type-sm);
+  padding: 0.625rem 1.25rem;
+  min-height: 42px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+  cursor: pointer;
+  line-height: 1.2;
+  text-transform: none;
+  text-decoration: none;
+}
+
+.btn:active {
+  transform: scale(0.99);
+}
+
+.btn:disabled,
+.btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.btn-sm {
+  min-height: 36px;
+  padding: 0.375rem 0.875rem;
+  font-size: var(--type-xs);
+}
+
+.btn-lg {
+  min-height: 48px;
+  padding: 0.75rem 1.75rem;
+  font-size: var(--type-base);
+}
+
+/* Primary CTA: The intentional single brass moment */
+.btn-primary {
+  background-color: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: var(--bg-primary) !important;
+  font-weight: 600;
+}
+
+.btn-primary:hover {
+  background-color: var(--text-primary) !important;
+  border-color: var(--text-primary) !important;
+  color: var(--bg-primary) !important;
+}
+
+.btn-outline-primary {
+  background-color: transparent !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+}
+
+.btn-outline-primary:hover {
+  background-color: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: var(--bg-primary) !important;
+}
+
+/* Secondary Actions: Quiet surface styling */
+.btn-secondary {
+  background-color: var(--bg-surface) !important;
+  border-color: var(--bg-surface-alt) !important;
+  color: var(--text-primary) !important;
+}
+
+.btn-secondary:hover {
+  background-color: var(--bg-surface-alt) !important;
+  border-color: var(--bg-surface-alt) !important;
+  color: var(--text-primary) !important;
+}
+
+.btn-outline-secondary {
+  background-color: transparent !important;
+  border-color: var(--bg-surface-alt) !important;
+  color: var(--text-muted) !important;
+}
+
+.btn-outline-secondary:hover {
+  background-color: var(--bg-surface) !important;
+  border-color: var(--text-muted) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Destructive Actions: Muted Rust */
+.btn-danger {
+  background-color: var(--danger) !important;
+  border-color: var(--danger) !important;
+  color: var(--text-primary) !important;
+}
+
+.btn-danger:hover {
+  background-color: var(--bg-surface-alt) !important;
+  border-color: var(--danger) !important;
+  color: var(--text-primary) !important;
+}
+
+.btn-outline-danger {
+  background-color: transparent !important;
+  border-color: var(--danger) !important;
+  color: var(--danger) !important;
+}
+
+.btn-outline-danger:hover {
+  background-color: var(--danger) !important;
+  border-color: var(--danger) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ==========================================================================
+   FORMS & INPUTS
+   ========================================================================== */
+
+.form-label {
+  font-family: var(--font-body);
+  font-size: var(--type-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 0.375rem;
+  text-transform: none;
+}
+
+.form-control,
+.form-select {
+  border: 1px solid var(--bg-surface-alt);
+  border-radius: var(--radius-sm);
+  padding: 0.625rem 0.875rem;
+  font-size: var(--type-sm);
+  font-family: var(--font-body);
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  min-height: 42px;
+}
+
+.form-control:focus,
+.form-select:focus {
+  background-color: var(--bg-primary);
+  border-color: var(--accent);
+  color: var(--text-primary);
+  box-shadow: var(--focus-ring);
+}
+
+.form-control::placeholder {
+  color: var(--text-muted);
+}
+
+.input-group-text {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--bg-surface-alt);
+  color: var(--text-muted);
+}
+
+/* ==========================================================================
+   CARDS & SURFACES (Separation via --bg-surface contrast, zero shadows)
+   ========================================================================== */
+
+.buy-card,
+.atelier-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--bg-surface-alt);
+  border-radius: var(--radius-md);
+  box-shadow: none !important;
+  transition: border-color var(--transition-fast);
+}
+
+.buy-card-hover,
+.atelier-card-hover {
+  transition: border-color var(--transition-fast);
+}
+
+.buy-card-hover:hover,
+.atelier-card-hover:hover {
+  border-color: var(--accent);
+  box-shadow: none !important;
+}
+
+/* ==========================================================================
+   BADGES (Sentence case, subtle status markers)
+   ========================================================================== */
+
+.buy-badge,
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.625rem;
+  font-size: var(--type-xs);
+  font-weight: 500;
+  font-family: var(--font-body);
+  border-radius: var(--radius-xs);
+  line-height: 1.25;
+  text-transform: none;
+  border: 1px solid transparent;
+}
+
+.buy-badge-primary,
+.badge.bg-primary {
+  background-color: var(--bg-surface-alt) !important;
+  color: var(--accent) !important;
+  border-color: var(--bg-surface-alt) !important;
+}
+
+.buy-badge-neutral,
+.badge.bg-secondary,
+.badge.bg-light {
+  background-color: var(--bg-surface-alt) !important;
+  color: var(--text-muted) !important;
+  border-color: var(--bg-surface-alt) !important;
+}
+
+.buy-badge-success,
+.badge.bg-success {
+  background-color: var(--bg-surface) !important;
+  color: var(--success) !important;
+  border-color: var(--success) !important;
+}
+
+.buy-badge-warning,
+.badge.bg-warning {
+  background-color: var(--bg-surface) !important;
+  color: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+
+.buy-badge-danger,
+.badge.bg-danger {
+  background-color: var(--bg-surface) !important;
+  color: var(--danger) !important;
+  border-color: var(--danger) !important;
+}
+
+/* ==========================================================================
+   TABLES (Studio Control Panel Density)
+   ========================================================================== */
+
+.table,
+.buy-table {
+  color: var(--text-primary);
+  background-color: var(--bg-surface);
+  border-color: var(--bg-surface-alt);
+  vertical-align: middle;
+  margin-bottom: 0;
+}
+
+.table th,
+.buy-table thead th {
+  background-color: var(--bg-surface);
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: var(--type-xs);
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--bg-surface-alt);
+}
+
+.table td,
+.buy-table tbody td {
+  padding: 0.875rem 1rem;
+  color: var(--text-primary);
+  background-color: var(--bg-surface);
+  border-bottom: 1px solid var(--bg-surface-alt);
+  font-size: var(--type-sm);
+}
+
+.table-hover tbody tr:hover td,
+.buy-table tbody tr:hover td {
+  background-color: var(--bg-primary);
+}
+
+/* ==========================================================================
+   MODALS & LIGHTBOXES
+   ========================================================================== */
+
+.buy-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(18, 17, 16, 0.85);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 1050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+}
+
+.buy-modal-content {
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--bg-surface-alt);
+  box-shadow: none !important;
+  width: 100%;
+  max-width: 680px;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  animation: atelierModalIn 0.16s ease-out;
+}
+
+.btn-close {
+  filter: invert(1) brightness(0.8);
+  opacity: 0.75;
+  transition: opacity var(--transition-fast);
+}
+
+.btn-close:hover {
+  opacity: 1;
+}
+
+@keyframes atelierModalIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ==========================================================================
+   TOASTS & NOTIFICATIONS
+   ========================================================================== */
+
+.buy-toast-container {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 1080;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 380px;
+  pointer-events: none;
+}
+
+.buy-toast {
+  pointer-events: auto;
+  padding: 0.75rem 1.25rem;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--bg-surface-alt) !important;
+  box-shadow: none !important;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: var(--type-sm);
+}
+
+/* ==========================================================================
+   ALERTS & FEEDBACK
+   ========================================================================== */
+
+.alert {
+  border-radius: var(--radius-sm);
+  padding: 0.875rem 1.25rem;
+  font-size: var(--type-sm);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--bg-surface-alt);
+  color: var(--text-primary);
+}
+
+.alert-danger {
+  background-color: var(--bg-surface) !important;
+  border-color: var(--danger) !important;
+  color: var(--text-primary) !important;
+}
+
+.alert-success {
+  background-color: var(--bg-surface) !important;
+  border-color: var(--success) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ==========================================================================
+   SKELETON LOADING (Quiet dark surfaces, no bright shimmer)
+   ========================================================================== */
+
+.skeleton {
+  background-color: var(--bg-surface-alt);
+  border-radius: var(--radius-xs);
+  opacity: 0.6;
+}
+
+/* ==========================================================================
+   BOOTSTRAP OVERRIDES TO MAINTAIN ATELIER INTEGRITY
+   ========================================================================== */
+
+.text-dark { color: var(--text-primary) !important; }
+.text-body { color: var(--text-primary) !important; }
+.text-secondary { color: var(--text-muted) !important; }
+.text-muted { color: var(--text-muted) !important; }
+.text-primary { color: var(--accent) !important; }
+.text-danger { color: var(--danger) !important; }
+.text-success { color: var(--success) !important; }
+
+.bg-white,
+.bg-light {
+  background-color: var(--bg-surface) !important;
+}
+
+.border,
+.border-top,
+.border-bottom,
+.border-start,
+.border-end {
+  border-color: var(--bg-surface-alt) !important;
+}
+
+/* Motion Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

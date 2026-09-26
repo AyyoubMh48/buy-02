@@ -1,0 +1,138 @@
+.media-manager-container {
+  min-height: 80vh;
+}
+
+/* Physical Space Upload Bay (Darkroom Station) */
+.atelier-darkroom-bay {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--bg-surface-alt);
+  border-radius: var(--radius-md);
+}
+
+.darkroom-aperture {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-xs);
+  background-color: var(--bg-primary);
+  color: var(--accent);
+  border: 1px solid var(--bg-surface-alt);
+  flex-shrink: 0;
+}
+
+.darkroom-intake-well {
+  background-color: var(--bg-primary);
+  border-color: var(--bg-surface-alt) !important;
+}
+
+.darkroom-inspection-plate {
+  background-color: var(--bg-primary);
+  border-color: var(--bg-surface-alt) !important;
+}
+
+.media-upload-preview {
+  height: 140px;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--bg-surface-alt);
+}
+
+/* Asymmetric Gallery-Wall Grid for Media */
+.atelier-media-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 1.5rem;
+  animation: atelierMediaLoadIn 0.3s ease-out;
+}
+
+@keyframes atelierMediaLoadIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.atelier-media-tile.tile-feature {
+  grid-column: span 6;
+}
+
+.atelier-media-tile.tile-standard {
+  grid-column: span 3;
+}
+
+@media (max-width: 991.98px) {
+  .atelier-media-tile.tile-feature,
+  .atelier-media-tile.tile-standard {
+    grid-column: span 6;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .atelier-media-grid {
+    gap: 1rem;
+  }
+
+  .atelier-media-tile.tile-feature,
+  .atelier-media-tile.tile-standard {
+    grid-column: span 12;
+  }
+}
+
+/* Card & Full-Bleed Image */
+.media-gallery-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--bg-surface-alt);
+  border-radius: var(--radius-xs);
+  transition: border-color var(--transition-fast);
+}
+
+.media-gallery-card:hover {
+  border-color: var(--accent);
+}
+
+.media-thumb-wrapper {
+  height: 200px;
+  cursor: pointer;
+  overflow: hidden;
+  background-color: var(--bg-primary);
+}
+
+.tile-feature .media-thumb-wrapper {
+  height: 280px;
+}
+
+.media-thumb-wrapper img {
+  transition: transform var(--transition-base);
+}
+
+.media-thumb-wrapper:hover img {
+  transform: scale(1.03);
+}
+
+.media-zoom-overlay {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(18, 17, 16, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  color: var(--text-primary);
+  font-size: var(--type-xs);
+  transition: opacity var(--transition-fast);
+}
+
+.media-thumb-wrapper:hover .media-zoom-overlay,
+.media-thumb-wrapper:focus-visible .media-zoom-overlay {
+  opacity: 1;
+}
+
+.darkroom-modal-frame {
+  background-color: var(--bg-primary);
+  border-color: var(--bg-surface-alt) !important;
+}

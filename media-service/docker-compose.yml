@@ -1,0 +1,22 @@
+services:
+  mongo-media:
+    image: mongo:7
+    container_name: mongo-media
+    restart: unless-stopped
+    ports:
+      - "27018:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+      MONGO_INITDB_DATABASE: media_db
+    volumes:
+      - mongo_media_data:/data/db
+    networks:
+      - buy01-network
+
+volumes:
+  mongo_media_data:
+
+networks:
+  buy01-network:
+    name: buy01-network

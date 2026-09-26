@@ -1,0 +1,86 @@
+.seller-dashboard {
+  min-height: 80vh;
+}
+
+/* Stat Blocks: Separation via --bg-surface, zero shadows */
+.stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-xs);
+  background-color: var(--bg-primary);
+  color: var(--text-muted);
+  border: 1px solid var(--bg-surface-alt);
+  flex-shrink: 0;
+}
+
+/* The single metric accent (Muted Brass) */
+.atelier-metric-accent {
+  color: var(--accent) !important;
+}
+
+/* Image Thumbnails in Upload Panel */
+.atelier-upload-bay {
+  background-color: var(--bg-primary);
+  border-color: var(--bg-surface-alt) !important;
+}
+
+.thumb-wrapper {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  background-color: var(--bg-primary);
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--bg-surface-alt);
+  overflow: hidden;
+}
+
+.thumb-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumb-del-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-xs);
+  font-size: var(--type-xs);
+  line-height: 1;
+  background-color: var(--bg-surface);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.thumb-del-btn:hover {
+  background-color: var(--danger);
+  color: var(--text-primary);
+}
+
+/* Table Micro Thumbnails */
+.table-thumb-box {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--bg-surface-alt);
+  background-color: var(--bg-primary);
+  color: var(--text-muted);
+}
+
+.table-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

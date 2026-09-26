@@ -1,0 +1,31 @@
+<div class="app-shell">
+  <!-- Accessible skip to content link -->
+  <a href="#main-content" class="skip-to-content">Skip to content</a>
+
+  <app-navbar></app-navbar>
+
+  <main id="main-content" class="app-main py-4" tabindex="-1">
+    <router-outlet></router-outlet>
+  </main>
+
+  <footer class="app-footer">
+    <div class="container-xl">
+      <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3">
+        <div class="d-flex align-items-center gap-2">
+          <span class="app-footer-brand">BUY01</span>
+          <span class="app-footer-tag">Atelier edition</span>
+        </div>
+        <div class="d-flex align-items-center gap-3 text-muted small app-footer-links">
+          <a routerLink="/products" class="app-footer-link">Catalog</a>
+          <span class="app-footer-sep" aria-hidden="true">/</span>
+          <a routerLink="/seller/dashboard" class="app-footer-link">Seller dashboard</a>
+          <span class="app-footer-sep" aria-hidden="true">/</span>
+          <a routerLink="/seller/media" class="app-footer-link">Media archive</a>
+        </div>
+        <div class="text-muted small">
+          Studio and marketplace platform
+        </div>
+      </div>
+    </div>
+  </footer>
+</div>

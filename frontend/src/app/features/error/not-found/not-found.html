@@ -1,0 +1,30 @@
+<section class="not-found-page" aria-labelledby="not-found-title">
+  <div class="not-found-content">
+    <div class="not-found-kicker mb-3">
+      <span class="buy-badge buy-badge-neutral">Archive signal</span>
+    </div>
+
+    <div class="not-found-code" aria-hidden="true">
+      404
+    </div>
+
+    <h1 id="not-found-title" class="mb-3">This shelf is empty</h1>
+    <p class="not-found-copy mb-4">
+      The piece or collection you are looking for has moved, been acquired, or was never cataloged.
+    </p>
+
+    <div class="not-found-actions">
+      <!-- Single Brass CTA (No appended arrows) -->
+      <a routerLink="/products" class="btn btn-primary">
+        Browse the catalog
+      </a>
+      <button type="button" class="btn btn-secondary" (click)="goBack()">
+        Previous view
+      </button>
+    </div>
+
+    <div class="not-found-meta mt-5 pt-3 border-top">
+      <span class="small text-muted">Error reference 404 &mdash; Unindexed atelier route</span>
+    </div>
+  </div>
+</section>
