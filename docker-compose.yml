@@ -10,6 +10,8 @@ services:
     image: mongo:7
     container_name: product-mongodb
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:27019:27017"
     environment:
       - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
@@ -32,6 +34,8 @@ services:
     image: mongo:7
     container_name: media-mongodb
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:27020:27017"
     environment:
       - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
@@ -54,6 +58,8 @@ services:
     image: mongo:7
     container_name: user-mongodb
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:27017:27017"
     environment:
       - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
@@ -121,7 +127,7 @@ services:
       dockerfile: Dockerfile
     container_name: buy01-gateway
     ports:
-      - "8443:8080"   # the only backend service reachable from the host
+      - "${GATEWAY_PORT:-8444}:8080"   # the only backend service reachable from the host
     volumes:
       - ./certs/gateway-keystore.p12:/run/secrets/gateway-keystore.p12:ro
     environment:

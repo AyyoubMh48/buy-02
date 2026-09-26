@@ -5,6 +5,8 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.annotation.KafkaListener;
+import com.buy_01.media.events.ProductImagesChangedEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -87,6 +89,22 @@ public class MediaService {
     }
 
    
+
+    @KafkaListener(topics = "PRODUCT_IMAGES_CHANGED", groupId = "media-product-image-cleanup")
+    public void onProductImagesChanged(ProductImagesChangedEvent event) {
+        event.previousMediaIds().stream()
+                .distinct()
+                .filter(id -> !event.mediaIds().contains(id))
+                .forEach(id -> repository.findById(id).ifPresent(metadata -> {
+                    // Replayed events may refer to images already deleted.
+                    if (!metadata.getUploaderId().equals(event.ownerId())) {
+                        throw new com.buy_01.media.exception.ForbiddenException(
+                                "Forbidden: You do not own this image.");
+                    }
+                    cloudinaryStorageService.deleteFile(metadata.getFilename());
+                    repository.deleteById(id);
+                }));
+    }
 
     public void deleteImage(String id, String requestingUser) {
         MediaMetaData metadata = getMetadata(id);

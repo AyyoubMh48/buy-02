@@ -25,6 +25,10 @@ export class MediaService {
     return this.http.post<MediaResponse>(`${this.API_URL}/images`, formData);
   }
 
+  deleteImage(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.API_URL}/images/${id}`);
+  }
+
   getImageUrl(id: string): string {
     return `${this.API_URL}/images/${id}`;
   }

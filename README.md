@@ -55,12 +55,37 @@ A scalable, containerized e-commerce backend platform built with **Java 17**, **
 | **Product Service** | `8082` | Product catalog CRUD (`/products`), seller ownership rules, and image linking. |
 | **Media Service** | `8083` | Image uploads validation (MIME `image/*`, size $\le 2\text{MB}$) and image serving (Cloudinary / Storage). |
 | **Frontend App** | `4200` | Angular Single Page Application with Auth pages, Seller dashboard, and Product listing. |
-| **MongoDB** | `27017` | Persistent document storage for users (`buy01_users`), products (`buy01_products`), and media (`buy01_media`). |
+| **MongoDB (users)** | `27017` | User database; host access on localhost only. |
+| **MongoDB (products)** | `27019` | Product database; host access on localhost only. |
+| **MongoDB (media)** | `27020` | Media database; host access on localhost only. |
 | **Apache Kafka** | `9092` | Event streaming for media uploads and product creation. |
 
 ---
 
 ## 🚀 How to Run the Platform
+
+### MongoDB connection links
+
+After changing port mappings, apply them from the project root:
+
+```bash
+docker compose up -d product-mongodb media-mongodb user-mongodb
+```
+
+Use these URI templates in MongoDB Compass or mongosh, replacing `${...}` with
+the corresponding values from the root `.env` file. Percent-encode any special
+characters in usernames and passwords when inserting them into a URI.
+
+```text
+mongodb://${USER_MONGO_USERNAME}:${USER_MONGO_PASSWORD}@localhost:27017/${USER_MONGO_DATABASE}?authSource=${USER_MONGO_DATABASE}
+mongodb://${PRODUCT_MONGO_USERNAME}:${PRODUCT_MONGO_PASSWORD}@localhost:27019/${PRODUCT_MONGO_DATABASE}?authSource=${PRODUCT_MONGO_DATABASE}
+mongodb://${MEDIA_MONGO_USERNAME}:${MEDIA_MONGO_PASSWORD}@localhost:27020/${MEDIA_MONGO_DATABASE}?authSource=${MEDIA_MONGO_DATABASE}
+```
+
+Application containers continue to use their respective MongoDB service names
+on port `27017`. The separate `media-service/docker-compose.yml` defines an
+independent media database on port `27018`, with connection URI
+`mongodb://root:example@localhost:27018/media_db?authSource=admin`.
 
 ### Option 1: Run with Docker Compose (Recommended)
 

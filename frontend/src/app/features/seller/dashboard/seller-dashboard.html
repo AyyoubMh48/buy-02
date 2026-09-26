@@ -103,7 +103,7 @@
         <span class="buy-badge buy-badge-neutral">{{ editingId() ? 'Editing' : 'New' }}</span>
         <h2 class="h5 m-0">{{ editingId() ? 'Update product details' : 'Publish new catalog listing' }}</h2>
       </div>
-      <button type="button" class="btn-close" (click)="closeForm()" aria-label="Close product form"></button>
+      <button type="button" class="btn-close" (click)="closeForm()" [disabled]="saving()" aria-label="Close product form"></button>
     </div>
 
     <div class="p-4">
@@ -180,9 +180,9 @@
                   style="max-width: 380px;"
                   accept="image/*" 
                   (change)="uploadImage($event)"
-                  [disabled]="uploading()">
+                  [disabled]="saving()">
                 <span class="text-muted small">
-                  Attach at least one photograph (Max 2 MB).
+                  Attach at least one photograph (Max 2 MB). Photos upload when you save.
                 </span>
               </div>
 
@@ -199,7 +199,8 @@
                   <button 
                     type="button" 
                     class="thumb-del-btn" 
-                    (click)="removeImage(i)" 
+                    (click)="removeImage(i)"
+                    [disabled]="saving()"
                     aria-label="Remove image">
                     ✕
                   </button>
@@ -214,7 +215,7 @@
 
         <!-- Form Submission Controls -->
         <div class="d-flex gap-2 justify-content-end mt-4 pt-3 border-top">
-          <button type="button" class="btn btn-secondary" (click)="closeForm()">
+          <button type="button" class="btn btn-secondary" (click)="closeForm()" [disabled]="saving()">
             Cancel
           </button>
           <button 

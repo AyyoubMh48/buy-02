@@ -2,6 +2,7 @@ package com.buy01.product_service.service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Arrays;
 
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
@@ -13,6 +14,7 @@ import com.buy01.product_service.dtos.req.LinkImagesRequest;
 import com.buy01.product_service.dtos.req.UpdateProduct;
 import com.buy01.product_service.dtos.response.ProductResponse;
 import com.buy01.product_service.events.ProductCreatedEvent;
+import com.buy01.product_service.events.ProductImagesChangedEvent;
 import com.buy01.product_service.exceptionsHandler.BadRequest;
 import com.buy01.product_service.exceptionsHandler.ResourceNotFoundException;
 import com.buy01.product_service.exceptionsHandler.UnauthorizedException;
@@ -30,7 +32,7 @@ public class ProductService {
  private static final String SELLER_ROLE = "SELLER";
  private final ProductRepository productRepository;
  private final MediaServiceClient mediaServiceClient;
- private final KafkaTemplate<String, ProductCreatedEvent> kafkaTemplate;
+ private final KafkaTemplate<String, Object> kafkaTemplate;
 //   this is going to bring all the products :;
 
 
@@ -81,10 +83,13 @@ public ProductResponse linkImages(String is , LinkImagesRequest req , Authentica
     Product p = findMyProduct(is, u);
     List<String> resolvedlinks = req.imageUrls().stream().
     map(m -> resolvedMediaUrl(m, u)).toList();
+    List<String> previousMediaIds = mediaIds(p);
     p.setImages(resolvedlinks.toArray(new String[0]));
     p.setMediaIds(req.imageUrls().toArray(new String[0]));
     p.setUpdatedAt(Instant.now());
-    return toResponse(productRepository.save(p));
+    Product saved = productRepository.save(p);
+    publishImageChange(saved, previousMediaIds, mediaIds(saved));
+    return toResponse(saved);
 }
 
 
@@ -143,6 +148,7 @@ public ProductResponse updateProduct(String id, UpdateProduct request, Authentic
         isSeller(user);
         Product product = findMyProduct(id, user);
 
+        List<String> previousMediaIds = mediaIds(product);
         product.setName(request.name());
         product.setDescription(request.description());
         product.setPrice(request.price());
@@ -151,7 +157,9 @@ public ProductResponse updateProduct(String id, UpdateProduct request, Authentic
         product.setQuantity(request.quantity());
         product.setUpdatedAt(Instant.now());
 
-        return toResponse(productRepository.save(product));
+        Product saved = productRepository.save(product);
+        publishImageChange(saved, previousMediaIds, mediaIds(saved));
+        return toResponse(saved);
     }
 
     private void requireImages(List<String> mediaIds) {
@@ -166,8 +174,19 @@ public void deleteP(String id , AuthenticatedUser user){
     isSeller(user);
    Product p = findMyProduct(id, user);
     productRepository.delete(p);
+    publishImageChange(p, mediaIds(p), List.of());
 }
  
+  private List<String> mediaIds(Product product) {
+        return product.getMediaIds() == null ? List.of() : List.copyOf(Arrays.asList(product.getMediaIds()));
+    }
+
+    private void publishImageChange(Product product, List<String> previous, List<String> current) {
+        kafkaTemplate.send("PRODUCT_IMAGES_CHANGED", product.getId(),
+                new ProductImagesChangedEvent(product.getId(), product.getOwnerId(), previous, current))
+                .join();
+    }
+
   private ProductResponse toResponse(Product product) {
         return new ProductResponse(
                 product.getId(),
