@@ -2,11 +2,12 @@ pipeline {
     agent any
 
     stages {
-        stage('Checkout Check') {
+        stage('Check Product Service') {
             steps {
-                sh 'echo "Repository loaded successfully"'
-                sh 'pwd'
-                sh 'ls -la'
+                dir('product-service') {
+                    sh 'pwd'
+                    sh 'ls -la'
+                }
             }
         }
     }
