@@ -2,16 +2,17 @@ pipeline {
     agent any
 
     stages {
-        stage('Check Environment') {
+
+        stage('Docker Check') {
             steps {
-                withCredentials([file(credentialsId: 'buy01-env', variable: 'ENV_FILE')]) {
-                    sh '''
-                echo "Secret file received"
-                test -f "$ENV_FILE"
-            '''
-                }
+                sh 'docker version'
             }
         }
+
+        // =========================
+        // Backend Tests
+        // =========================
+
         stage('Product Service Tests') {
             steps {
                 dir('product-service') {
@@ -20,22 +21,97 @@ pipeline {
             }
         }
 
-        stage('Product Service Package') {
+        stage('User Service Tests') {
             steps {
-                dir('product-service') {
-                    sh './mvnw package -DskipTests'
-                    sh 'ls -lh target/'
+                dir('user-service') {
+                    sh './mvnw test'
                 }
             }
         }
 
-        stage('Docker Check') {
+        stage('Media Service Tests') {
             steps {
-                sh 'docker version'
+                dir('media-service') {
+                    sh './mvnw test'
+                }
             }
         }
 
-        stage('Product Service Docker Build') {
+        stage('Gateway Tests') {
+            steps {
+                dir('gateway') {
+                    sh './mvnw test'
+                }
+            }
+        }
+
+        stage('Discovery Tests') {
+            steps {
+                dir('discovery') {
+                    sh './mvnw test'
+                }
+            }
+        }
+
+        // =========================
+        // Backend Package
+        // =========================
+
+        stage('Package Backend') {
+            steps {
+
+                dir('product-service') {
+                    sh './mvnw package -DskipTests'
+                }
+
+                dir('user-service') {
+                    sh './mvnw package -DskipTests'
+                }
+
+                dir('media-service') {
+                    sh './mvnw package -DskipTests'
+                }
+
+                dir('gateway') {
+                    sh './mvnw package -DskipTests'
+                }
+
+                dir('discovery') {
+                    sh './mvnw package -DskipTests'
+                }
+            }
+        }
+
+        // =========================
+        // Check Artifacts
+        // =========================
+
+        stage('Check Backend Artifacts') {
+            steps {
+                sh '''
+                    echo "=== Product Service ==="
+                    ls -lh product-service/target/*.jar
+
+                    echo "=== User Service ==="
+                    ls -lh user-service/target/*.jar
+
+                    echo "=== Media Service ==="
+                    ls -lh media-service/target/*.jar
+
+                    echo "=== Gateway ==="
+                    ls -lh gateway/target/*.jar
+
+                    echo "=== Discovery ==="
+                    ls -lh discovery/target/*.jar
+                '''
+            }
+        }
+
+        // =========================
+        // Product Docker Image
+        // =========================
+
+        stage('Build Product Docker Image') {
             steps {
                 dir('product-service') {
                     sh 'docker build -t product-service:${BUILD_NUMBER} .'
@@ -43,33 +119,25 @@ pipeline {
             }
         }
 
-        stage('Docker Image Check') {
+        stage('Check Docker Image') {
             steps {
                 sh 'docker image ls product-service'
             }
         }
-        stage('Validate Compose') {
-            steps {
-                withCredentials([file(credentialsId: 'buy01-env', variable: 'ENV_FILE')]) {
-                    sh '''
-                PRODUCT_IMAGE_TAG=${BUILD_NUMBER} \
-                docker compose --env-file "$ENV_FILE" config > /dev/null
-            '''
-                }
-            }
+    }
+
+    post {
+
+        success {
+            echo "Pipeline SUCCESS - Build #${BUILD_NUMBER}"
+        }
+
+        failure {
+            echo "Pipeline FAILED - Build #${BUILD_NUMBER}"
+        }
+
+        always {
+            echo "Pipeline finished."
         }
     }
 }
-    /* stage('Frontend Tests') {
-            steps {
-                dir('frontend') {
-                    sh 'npm ci'
-                    sh 'npm run test:ci'
-                }
-            }
-            post {
-                always {
-                    junit allowEmptyResults: true, testResults: 'frontend/test-results.xml'
-                }
-            }
-        }*/
