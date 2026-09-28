@@ -2,6 +2,12 @@ pipeline {
     agent any
 
     stages {
+        stage('Frontend Environment Check') {
+            steps {
+                sh 'node --version'
+                sh 'npm --version'
+            }
+        }
         stage('Docker Check') {
             steps {
                 sh 'docker version'
