@@ -3,7 +3,10 @@ pipeline {
 
     stages {
 
-  
+        // ========================================
+        // 1. Docker Environment
+        // ========================================
+
         stage('Docker Check') {
             steps {
                 sh 'docker version'
@@ -11,6 +14,9 @@ pipeline {
         }
 
 
+        // ========================================
+        // 2. Backend Tests
+        // ========================================
 
         stage('Product Service Tests') {
             steps {
@@ -68,7 +74,10 @@ pipeline {
         }
 
 
-       
+        // ========================================
+        // 3. Package Backend
+        // ========================================
+
         stage('Package Backend') {
             steps {
 
@@ -95,7 +104,10 @@ pipeline {
         }
 
 
-       
+        // ========================================
+        // 4. Check Backend Artifacts
+        // ========================================
+
         stage('Check Backend Artifacts') {
             steps {
                 sh '''
@@ -118,6 +130,10 @@ pipeline {
         }
 
 
+        // ========================================
+        // 5. Frontend
+        // ========================================
+
         stage('Frontend CI') {
             steps {
                 dir('frontend') {
@@ -134,8 +150,11 @@ pipeline {
         }
 
 
+        // ========================================
+        // 6. Docker Images
+        // ========================================
 
-        stage('Build Product Docker Image') {
+        stage('Build Product Image') {
             steps {
                 dir('product-service') {
                     sh '''
@@ -147,9 +166,55 @@ pipeline {
             }
         }
 
+        stage('Build User Image') {
+            steps {
+                dir('user-service') {
+                    sh '''
+                        docker build \
+                            -t user-service:${BUILD_NUMBER} \
+                            .
+                    '''
+                }
+            }
+        }
 
-  
-        stage('Build Frontend Docker Image') {
+        stage('Build Media Image') {
+            steps {
+                dir('media-service') {
+                    sh '''
+                        docker build \
+                            -t media-service:${BUILD_NUMBER} \
+                            .
+                    '''
+                }
+            }
+        }
+
+        stage('Build Gateway Image') {
+            steps {
+                dir('gateway') {
+                    sh '''
+                        docker build \
+                            -t gateway:${BUILD_NUMBER} \
+                            .
+                    '''
+                }
+            }
+        }
+
+        stage('Build Discovery Image') {
+            steps {
+                dir('discovery') {
+                    sh '''
+                        docker build \
+                            -t discovery:${BUILD_NUMBER} \
+                            .
+                    '''
+                }
+            }
+        }
+
+        stage('Build Frontend Image') {
             steps {
                 dir('frontend') {
                     sh '''
@@ -162,23 +227,38 @@ pipeline {
         }
 
 
-
+        // ========================================
+        // 7. Check Complete Release
+        // ========================================
 
         stage('Check Docker Images') {
             steps {
                 sh '''
-                    echo "=== Product Service Images ==="
-                    docker image ls product-service
+                    echo "================================"
+                    echo "Release #${BUILD_NUMBER}"
+                    echo "================================"
 
-                    echo "=== Frontend Images ==="
-                    docker image ls frontend
+                    docker image inspect product-service:${BUILD_NUMBER} > /dev/null
+                    docker image inspect user-service:${BUILD_NUMBER} > /dev/null
+                    docker image inspect media-service:${BUILD_NUMBER} > /dev/null
+                    docker image inspect gateway:${BUILD_NUMBER} > /dev/null
+                    docker image inspect discovery:${BUILD_NUMBER} > /dev/null
+                    docker image inspect frontend:${BUILD_NUMBER} > /dev/null
+
+                    echo "All Docker images exist:"
+                    echo "product-service:${BUILD_NUMBER}"
+                    echo "user-service:${BUILD_NUMBER}"
+                    echo "media-service:${BUILD_NUMBER}"
+                    echo "gateway:${BUILD_NUMBER}"
+                    echo "discovery:${BUILD_NUMBER}"
+                    echo "frontend:${BUILD_NUMBER}"
                 '''
             }
         }
 
 
         // ========================================
-        // 9. Validate Docker Compose
+        // 8. Validate Docker Compose
         // ========================================
 
         stage('Validate Compose') {
@@ -192,7 +272,7 @@ pipeline {
                     sh '''
                         set +x
 
-                        PRODUCT_IMAGE_TAG=${BUILD_NUMBER} \
+                        APP_IMAGE_TAG=${BUILD_NUMBER} \
                         docker compose \
                             --env-file "$ENV_FILE" \
                             config > /dev/null
@@ -206,17 +286,37 @@ pipeline {
 
 
     // ========================================
-    // Final actions
+    // Final Pipeline Actions
     // ========================================
 
     post {
 
         success {
-            echo "Pipeline SUCCESS - Build #${BUILD_NUMBER}"
+            echo """
+            ==========================================
+            BUILD SUCCESS
+            Release: ${BUILD_NUMBER}
+
+            Images:
+            product-service:${BUILD_NUMBER}
+            user-service:${BUILD_NUMBER}
+            media-service:${BUILD_NUMBER}
+            gateway:${BUILD_NUMBER}
+            discovery:${BUILD_NUMBER}
+            frontend:${BUILD_NUMBER}
+            ==========================================
+            """
         }
 
         failure {
-            echo "Pipeline FAILED - Build #${BUILD_NUMBER}"
+            echo """
+            ==========================================
+            PIPELINE FAILED
+            Build: ${BUILD_NUMBER}
+
+            Deployment was NOT performed.
+            ==========================================
+            """
         }
 
         always {
