@@ -139,6 +139,14 @@ pipeline {
                 sh 'docker image ls product-service'
             }
         }
+        stage('Frontend Install') {
+            steps {
+                dir('frontend') {
+                    sh 'npm ci'
+                    sh 'npm run'
+                }
+            }
+        }
     }
 
     post {
