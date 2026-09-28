@@ -8,9 +8,11 @@ pipeline {
                 sh 'npm --version'
             }
         }
-        stage('Docker Check') {
+        stage('Frontend Tests') {
             steps {
-                sh 'docker version'
+                dir('frontend') {
+                    sh 'CI=true npm test -- --no-watch --no-progress'
+                }
             }
         }
 
@@ -139,11 +141,12 @@ pipeline {
                 sh 'docker image ls product-service'
             }
         }
-        stage('Frontend Install') {
+        stage('Frontend CI') {
             steps {
                 dir('frontend') {
                     sh 'npm ci'
-                    sh 'npm run'
+                    sh 'CI=true npm test -- --no-watch --no-progress'
+                    sh 'npm run build'
                 }
             }
         }
