@@ -2,6 +2,16 @@ pipeline {
     agent any
 
     stages {
+        stage('Check Environment') {
+            steps {
+                withCredentials([file(credentialsId: 'buy01-env', variable: 'ENV_FILE')]) {
+                    sh '''
+                echo "Secret file received"
+                test -f "$ENV_FILE"
+            '''
+                }
+            }
+        }
         stage('Product Service Tests') {
             steps {
                 dir('product-service') {

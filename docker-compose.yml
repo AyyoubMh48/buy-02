@@ -172,29 +172,30 @@ services:
       - user-db-network
 
   product-service:
-    build:
-      context: ./product-service
-      dockerfile: Dockerfile
-    container_name: buy01-product-service
-    environment:
-      - EUREKA_CLIENT_SERVICE_URL=http://discovery:8761/eureka/
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery:8761/eureka/
-      - MONGODB_URI=mongodb://${PRODUCT_MONGO_USERNAME}:${PRODUCT_MONGO_PASSWORD}@product-mongodb:27017/${PRODUCT_MONGO_DATABASE}?authSource=${PRODUCT_MONGO_DATABASE}
-      - SPRING_MONGODB_URI=mongodb://${PRODUCT_MONGO_USERNAME}:${PRODUCT_MONGO_PASSWORD}@product-mongodb:27017/${PRODUCT_MONGO_DATABASE}?authSource=${PRODUCT_MONGO_DATABASE}
-      - SPRING_DATA_MONGODB_URI=mongodb://${PRODUCT_MONGO_USERNAME}:${PRODUCT_MONGO_PASSWORD}@product-mongodb:27017/${PRODUCT_MONGO_DATABASE}?authSource=${PRODUCT_MONGO_DATABASE}
-      - MEDIA_SERVICE_URL=http://media-service:8083/media/images
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-    depends_on:
-      discovery:
-        condition: service_healthy
-      product-mongodb:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    networks:
-      - buy01-network
-      - product-db-network
+   image: product-service:${PRODUCT_IMAGE_TAG:?PRODUCT_IMAGE_TAG is required}
+   container_name: buy01-product-service
 
+   environment:
+    - EUREKA_CLIENT_SERVICE_URL=http://discovery:8761/eureka/
+    - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery:8761/eureka/
+    - MONGODB_URI=mongodb://${PRODUCT_MONGO_USERNAME}:${PRODUCT_MONGO_PASSWORD}@product-mongodb:27017/${PRODUCT_MONGO_DATABASE}?authSource=${PRODUCT_MONGO_DATABASE}
+    - SPRING_MONGODB_URI=mongodb://${PRODUCT_MONGO_USERNAME}:${PRODUCT_MONGO_PASSWORD}@product-mongodb:27017/${PRODUCT_MONGO_DATABASE}?authSource=${PRODUCT_MONGO_DATABASE}
+    - SPRING_DATA_MONGODB_URI=mongodb://${PRODUCT_MONGO_USERNAME}:${PRODUCT_MONGO_PASSWORD}@product-mongodb:27017/${PRODUCT_MONGO_DATABASE}?authSource=${PRODUCT_MONGO_DATABASE}
+    - MEDIA_SERVICE_URL=http://media-service:8083/media/images
+    - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+
+   depends_on:
+    discovery:
+      condition: service_healthy
+    product-mongodb:
+      condition: service_healthy
+    kafka:
+      condition: service_healthy
+
+   networks:
+    - buy01-network
+    - product-db-network
+    
   media-service:
     build:
       context: ./media-service

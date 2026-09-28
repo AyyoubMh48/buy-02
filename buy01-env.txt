@@ -1,0 +1,27 @@
+JWT_SECRET=buy01-super-secret-key-VeryStrongPasswordYouShllNotPass
+JWT_EXPIRATION=3600000
+
+CLOUDINARY_CLOUD_NAME=bmgfgqae
+CLOUDINARY_API_KEY=232899191186292
+CLOUDINARY_API_SECRET=k0TYmIcnimwalIhjMQ1zCH4-zxQ
+
+# Mongo root user — only used by the container itself and by healthchecks,
+# no service connects with this 
+MONGO_ROOT_USERNAME=root
+MONGO_ROOT_PASSWORD=2bfe1db3794476a4a8e1017c81fdff55
+
+# One scoped user per service database — each can only touch its own data.
+PRODUCT_MONGO_DATABASE=product_service_db
+PRODUCT_MONGO_USERNAME=product_service
+PRODUCT_MONGO_PASSWORD=VeryStrongPasswordYouShllNotPass
+
+MEDIA_MONGO_DATABASE=media_service_db
+MEDIA_MONGO_USERNAME=media_service
+MEDIA_MONGO_PASSWORD=a9b14b98606d04c71e52c624a5e10521
+
+USER_MONGO_DATABASE=user_service_db
+USER_MONGO_USERNAME=user_service
+USER_MONGO_PASSWORD=09732e8ee619e0d41419c5697667dfc4
+
+
+SERVER_SSL_KEY_STORE_PASSWORD=buy01-local-https-change-this-password
