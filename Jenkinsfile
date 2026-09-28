@@ -2,13 +2,14 @@ pipeline {
     agent any
 
     stages {
-        stage('Check Product Service') {
+
+        stage('Product Service Tests') {
             steps {
                 dir('product-service') {
-                    sh 'pwd'
-                    sh 'ls -la'
+                    sh './mvnw test'
                 }
             }
         }
+
     }
 }
