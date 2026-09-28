@@ -48,6 +48,16 @@ pipeline {
                 sh 'docker image ls product-service'
             }
         }
+        stage('Validate Compose') {
+            steps {
+                withCredentials([file(credentialsId: 'buy01-env', variable: 'ENV_FILE')]) {
+                    sh '''
+                PRODUCT_IMAGE_TAG=${BUILD_NUMBER} \
+                docker compose --env-file "$ENV_FILE" config > /dev/null
+            '''
+                }
+            }
+        }
     }
 }
     /* stage('Frontend Tests') {
