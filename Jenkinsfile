@@ -15,9 +15,15 @@ pipeline {
             steps {
                 dir('product-service') {
                     sh './mvnw package -DskipTests'
+                    sh 'ls -lh target/'
                 }
             }
         }
 
+        stage('Docker Check') {
+            steps {
+                sh 'docker --version'
+            }
+        }
     }
 }
