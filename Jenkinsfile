@@ -11,5 +11,13 @@ pipeline {
             }
         }
 
+        stage('Product Service Package') {
+            steps {
+                dir('product-service') {
+                    sh './mvnw package -DskipTests'
+                }
+            }
+        }
+
     }
 }
