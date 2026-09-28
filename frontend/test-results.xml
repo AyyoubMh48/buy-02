@@ -1,123 +1,123 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<testsuites name="vitest tests" tests="46" failures="0" errors="0" time="1.103983977">
-    <testsuite name="src/app/app.spec.ts" timestamp="2026-09-28T13:53:15.716Z" hostname="sandbox" tests="1" failures="0" errors="0" skipped="0" time="0.136582391">
-        <testcase classname="src/app/app.spec.ts" name="App &gt; should create the app" time="0.134935258">
+<testsuites name="vitest tests" tests="46" failures="0" errors="0" time="1.184112731">
+    <testsuite name="src/app/app.spec.ts" timestamp="2026-09-28T14:01:00.630Z" hostname="sandbox" tests="1" failures="0" errors="0" skipped="0" time="0.159482719">
+        <testcase classname="src/app/app.spec.ts" name="App &gt; should create the app" time="0.157851235">
         </testcase>
     </testsuite>
-    <testsuite name="src/app/core/guards/auth-guard.spec.ts" timestamp="2026-09-28T13:53:15.717Z" hostname="sandbox" tests="1" failures="0" errors="0" skipped="0" time="0.000968777">
-        <testcase classname="src/app/core/guards/auth-guard.spec.ts" name="authGuard &gt; should be created" time="0.00076793">
+    <testsuite name="src/app/core/guards/auth-guard.spec.ts" timestamp="2026-09-28T14:01:00.631Z" hostname="sandbox" tests="1" failures="0" errors="0" skipped="0" time="0.001219891">
+        <testcase classname="src/app/core/guards/auth-guard.spec.ts" name="authGuard &gt; should be created" time="0.000666053">
         </testcase>
     </testsuite>
-    <testsuite name="src/app/core/guards/role-guard.spec.ts" timestamp="2026-09-28T13:53:15.717Z" hostname="sandbox" tests="1" failures="0" errors="0" skipped="0" time="0.000682794">
-        <testcase classname="src/app/core/guards/role-guard.spec.ts" name="roleGuard &gt; should be created" time="0.000495845">
+    <testsuite name="src/app/core/guards/role-guard.spec.ts" timestamp="2026-09-28T14:01:00.631Z" hostname="sandbox" tests="1" failures="0" errors="0" skipped="0" time="0.000594141">
+        <testcase classname="src/app/core/guards/role-guard.spec.ts" name="roleGuard &gt; should be created" time="0.000413707">
         </testcase>
     </testsuite>
-    <testsuite name="src/app/core/interceptors/jwt-interceptor.spec.ts" timestamp="2026-09-28T13:53:15.717Z" hostname="sandbox" tests="1" failures="0" errors="0" skipped="0" time="0.000864594">
-        <testcase classname="src/app/core/interceptors/jwt-interceptor.spec.ts" name="jwtInterceptor &gt; should be created" time="0.000401148">
+    <testsuite name="src/app/core/interceptors/jwt-interceptor.spec.ts" timestamp="2026-09-28T14:01:00.632Z" hostname="sandbox" tests="1" failures="0" errors="0" skipped="0" time="0.000873606">
+        <testcase classname="src/app/core/interceptors/jwt-interceptor.spec.ts" name="jwtInterceptor &gt; should be created" time="0.000583052">
         </testcase>
     </testsuite>
-    <testsuite name="src/app/core/services/auth.spec.ts" timestamp="2026-09-28T13:53:15.717Z" hostname="sandbox" tests="6" failures="0" errors="0" skipped="0" time="0.068178965">
-        <testcase classname="src/app/core/services/auth.spec.ts" name="AuthService &gt; should be created" time="0.022533">
+    <testsuite name="src/app/core/services/auth.spec.ts" timestamp="2026-09-28T14:01:00.632Z" hostname="sandbox" tests="6" failures="0" errors="0" skipped="0" time="0.075993773">
+        <testcase classname="src/app/core/services/auth.spec.ts" name="AuthService &gt; should be created" time="0.025873124">
         </testcase>
-        <testcase classname="src/app/core/services/auth.spec.ts" name="AuthService &gt; should authenticate user and store token/user on login" time="0.022336004">
+        <testcase classname="src/app/core/services/auth.spec.ts" name="AuthService &gt; should authenticate user and store token/user on login" time="0.023815291">
         </testcase>
-        <testcase classname="src/app/core/services/auth.spec.ts" name="AuthService &gt; should register user and store token/user on register" time="0.005544942">
+        <testcase classname="src/app/core/services/auth.spec.ts" name="AuthService &gt; should register user and store token/user on register" time="0.006268708">
         </testcase>
-        <testcase classname="src/app/core/services/auth.spec.ts" name="AuthService &gt; should clear storage, reset signals and navigate to /login on logout" time="0.004761101">
+        <testcase classname="src/app/core/services/auth.spec.ts" name="AuthService &gt; should clear storage, reset signals and navigate to /login on logout" time="0.005495905">
         </testcase>
-        <testcase classname="src/app/core/services/auth.spec.ts" name="AuthService &gt; should check if user has a specific role" time="0.006143506">
+        <testcase classname="src/app/core/services/auth.spec.ts" name="AuthService &gt; should check if user has a specific role" time="0.006694679">
         </testcase>
-        <testcase classname="src/app/core/services/auth.spec.ts" name="AuthService &gt; should update current user and persist changes in storage" time="0.004987912">
-        </testcase>
-    </testsuite>
-    <testsuite name="src/app/core/services/media.spec.ts" timestamp="2026-09-28T13:53:15.718Z" hostname="sandbox" tests="6" failures="0" errors="0" skipped="0" time="0.05998645">
-        <testcase classname="src/app/core/services/media.spec.ts" name="MediaService &gt; should be created" time="0.016050612">
-        </testcase>
-        <testcase classname="src/app/core/services/media.spec.ts" name="MediaService &gt; should reject non-image file uploads" time="0.005895535">
-        </testcase>
-        <testcase classname="src/app/core/services/media.spec.ts" name="MediaService &gt; should reject images larger than 2 MB" time="0.007836045">
-        </testcase>
-        <testcase classname="src/app/core/services/media.spec.ts" name="MediaService &gt; should upload valid image via POST to /media/images" time="0.015523775">
-        </testcase>
-        <testcase classname="src/app/core/services/media.spec.ts" name="MediaService &gt; should delete image via DELETE /media/images/:id" time="0.008080186">
-        </testcase>
-        <testcase classname="src/app/core/services/media.spec.ts" name="MediaService &gt; should construct correct image URL" time="0.004608325">
+        <testcase classname="src/app/core/services/auth.spec.ts" name="AuthService &gt; should update current user and persist changes in storage" time="0.00451808">
         </testcase>
     </testsuite>
-    <testsuite name="src/app/core/services/product.spec.ts" timestamp="2026-09-28T13:53:15.719Z" hostname="sandbox" tests="7" failures="0" errors="0" skipped="0" time="0.073001722">
-        <testcase classname="src/app/core/services/product.spec.ts" name="ProductService &gt; should be created" time="0.019771243">
+    <testsuite name="src/app/core/services/media.spec.ts" timestamp="2026-09-28T14:01:00.632Z" hostname="sandbox" tests="6" failures="0" errors="0" skipped="0" time="0.076894972">
+        <testcase classname="src/app/core/services/media.spec.ts" name="MediaService &gt; should be created" time="0.030376215">
         </testcase>
-        <testcase classname="src/app/core/services/product.spec.ts" name="ProductService &gt; should fetch all products via GET" time="0.00931457">
+        <testcase classname="src/app/core/services/media.spec.ts" name="MediaService &gt; should reject non-image file uploads" time="0.006168605">
         </testcase>
-        <testcase classname="src/app/core/services/product.spec.ts" name="ProductService &gt; should fetch seller products via GET /myProducts" time="0.006192048">
+        <testcase classname="src/app/core/services/media.spec.ts" name="MediaService &gt; should reject images larger than 2 MB" time="0.005904449">
         </testcase>
-        <testcase classname="src/app/core/services/product.spec.ts" name="ProductService &gt; should fetch product by id via GET" time="0.007196259">
+        <testcase classname="src/app/core/services/media.spec.ts" name="MediaService &gt; should upload valid image via POST to /media/images" time="0.017954155">
         </testcase>
-        <testcase classname="src/app/core/services/product.spec.ts" name="ProductService &gt; should create product via POST" time="0.015699058">
+        <testcase classname="src/app/core/services/media.spec.ts" name="MediaService &gt; should delete image via DELETE /media/images/:id" time="0.008504497">
         </testcase>
-        <testcase classname="src/app/core/services/product.spec.ts" name="ProductService &gt; should update product via PUT" time="0.006064866">
-        </testcase>
-        <testcase classname="src/app/core/services/product.spec.ts" name="ProductService &gt; should delete product via DELETE" time="0.00617779">
+        <testcase classname="src/app/core/services/media.spec.ts" name="MediaService &gt; should construct correct image URL" time="0.00561547">
         </testcase>
     </testsuite>
-    <testsuite name="src/app/shared/navbar/navbar.spec.ts" timestamp="2026-09-28T13:53:15.719Z" hostname="sandbox" tests="1" failures="0" errors="0" skipped="0" time="0.117198293">
-        <testcase classname="src/app/shared/navbar/navbar.spec.ts" name="Navbar &gt; should create" time="0.115270804">
+    <testsuite name="src/app/core/services/product.spec.ts" timestamp="2026-09-28T14:01:00.633Z" hostname="sandbox" tests="7" failures="0" errors="0" skipped="0" time="0.073125301">
+        <testcase classname="src/app/core/services/product.spec.ts" name="ProductService &gt; should be created" time="0.022079809">
+        </testcase>
+        <testcase classname="src/app/core/services/product.spec.ts" name="ProductService &gt; should fetch all products via GET" time="0.009224665">
+        </testcase>
+        <testcase classname="src/app/core/services/product.spec.ts" name="ProductService &gt; should fetch seller products via GET /myProducts" time="0.007209179">
+        </testcase>
+        <testcase classname="src/app/core/services/product.spec.ts" name="ProductService &gt; should fetch product by id via GET" time="0.006011514">
+        </testcase>
+        <testcase classname="src/app/core/services/product.spec.ts" name="ProductService &gt; should create product via POST" time="0.016077186">
+        </testcase>
+        <testcase classname="src/app/core/services/product.spec.ts" name="ProductService &gt; should update product via PUT" time="0.005607613">
+        </testcase>
+        <testcase classname="src/app/core/services/product.spec.ts" name="ProductService &gt; should delete product via DELETE" time="0.005321081">
         </testcase>
     </testsuite>
-    <testsuite name="src/app/features/auth/login/login.spec.ts" timestamp="2026-09-28T13:53:15.720Z" hostname="sandbox" tests="7" failures="0" errors="0" skipped="0" time="0.132573674">
-        <testcase classname="src/app/features/auth/login/login.spec.ts" name="Login &gt; should create" time="0.081051367">
-        </testcase>
-        <testcase classname="src/app/features/auth/login/login.spec.ts" name="Login &gt; should toggle showPassword signal" time="0.008939347">
-        </testcase>
-        <testcase classname="src/app/features/auth/login/login.spec.ts" name="Login &gt; should validate email and password inputs" time="0.009068575">
-        </testcase>
-        <testcase classname="src/app/features/auth/login/login.spec.ts" name="Login &gt; should not call auth.login when form is invalid on submit" time="0.009621546">
-        </testcase>
-        <testcase classname="src/app/features/auth/login/login.spec.ts" name="Login &gt; should login and navigate to /seller/dashboard for SELLER role" time="0.008884285">
-        </testcase>
-        <testcase classname="src/app/features/auth/login/login.spec.ts" name="Login &gt; should login and navigate to /products for CLIENT role" time="0.006796196">
-        </testcase>
-        <testcase classname="src/app/features/auth/login/login.spec.ts" name="Login &gt; should set error message when login fails" time="0.00631053">
+    <testsuite name="src/app/shared/navbar/navbar.spec.ts" timestamp="2026-09-28T14:01:00.633Z" hostname="sandbox" tests="1" failures="0" errors="0" skipped="0" time="0.108547361">
+        <testcase classname="src/app/shared/navbar/navbar.spec.ts" name="Navbar &gt; should create" time="0.10634994">
         </testcase>
     </testsuite>
-    <testsuite name="src/app/features/auth/register/register.spec.ts" timestamp="2026-09-28T13:53:15.720Z" hostname="sandbox" tests="4" failures="0" errors="0" skipped="0" time="0.110470881">
-        <testcase classname="src/app/features/auth/register/register.spec.ts" name="Register &gt; should create" time="0.075037964">
+    <testsuite name="src/app/features/auth/login/login.spec.ts" timestamp="2026-09-28T14:01:00.633Z" hostname="sandbox" tests="7" failures="0" errors="0" skipped="0" time="0.141989793">
+        <testcase classname="src/app/features/auth/login/login.spec.ts" name="Login &gt; should create" time="0.087186978">
         </testcase>
-        <testcase classname="src/app/features/auth/register/register.spec.ts" name="Register &gt; should invalidate fullName when it contains invalid special characters" time="0.01223306">
+        <testcase classname="src/app/features/auth/login/login.spec.ts" name="Login &gt; should toggle showPassword signal" time="0.011304017">
         </testcase>
-        <testcase classname="src/app/features/auth/register/register.spec.ts" name="Register &gt; should display backend field validation error when registration fails with 400" time="0.012862021">
+        <testcase classname="src/app/features/auth/login/login.spec.ts" name="Login &gt; should validate email and password inputs" time="0.011845278">
         </testcase>
-        <testcase classname="src/app/features/auth/register/register.spec.ts" name="Register &gt; should display conflict error message when registration fails with 409" time="0.008905107">
+        <testcase classname="src/app/features/auth/login/login.spec.ts" name="Login &gt; should not call auth.login when form is invalid on submit" time="0.008609086">
         </testcase>
-    </testsuite>
-    <testsuite name="src/app/features/products/product-list/product-list.spec.ts" timestamp="2026-09-28T13:53:15.720Z" hostname="sandbox" tests="1" failures="0" errors="0" skipped="0" time="0.113371354">
-        <testcase classname="src/app/features/products/product-list/product-list.spec.ts" name="ProductList &gt; should create" time="0.111836195">
+        <testcase classname="src/app/features/auth/login/login.spec.ts" name="Login &gt; should login and navigate to /seller/dashboard for SELLER role" time="0.008436883">
         </testcase>
-    </testsuite>
-    <testsuite name="src/app/features/profile/update-profile-dialog/update-profile-dialog.spec.ts" timestamp="2026-09-28T13:53:15.720Z" hostname="sandbox" tests="4" failures="0" errors="0" skipped="0" time="0.097578508">
-        <testcase classname="src/app/features/profile/update-profile-dialog/update-profile-dialog.spec.ts" name="UpdateProfileDialog &gt; should create" time="0.062308839">
+        <testcase classname="src/app/features/auth/login/login.spec.ts" name="Login &gt; should login and navigate to /products for CLIENT role" time="0.006708115">
         </testcase>
-        <testcase classname="src/app/features/profile/update-profile-dialog/update-profile-dialog.spec.ts" name="UpdateProfileDialog &gt; should hide avatar upload row when user is CLIENT" time="0.011978376">
-        </testcase>
-        <testcase classname="src/app/features/profile/update-profile-dialog/update-profile-dialog.spec.ts" name="UpdateProfileDialog &gt; should show avatar upload row when user is SELLER" time="0.012864921">
-        </testcase>
-        <testcase classname="src/app/features/profile/update-profile-dialog/update-profile-dialog.spec.ts" name="UpdateProfileDialog &gt; should not upload avatar if user is CLIENT even if onAvatarSelect is triggered" time="0.008858653">
+        <testcase classname="src/app/features/auth/login/login.spec.ts" name="Login &gt; should set error message when login fails" time="0.006224408">
         </testcase>
     </testsuite>
-    <testsuite name="src/app/features/seller/dashboard/seller-dashboard.spec.ts" timestamp="2026-09-28T13:53:15.721Z" hostname="sandbox" tests="5" failures="0" errors="0" skipped="0" time="0.044282254">
-        <testcase classname="src/app/features/seller/dashboard/seller-dashboard.spec.ts" name="Product draft photos &gt; cancels without uploading or changing existing photos" time="0.013140009">
+    <testsuite name="src/app/features/auth/register/register.spec.ts" timestamp="2026-09-28T14:01:00.634Z" hostname="sandbox" tests="4" failures="0" errors="0" skipped="0" time="0.120157825">
+        <testcase classname="src/app/features/auth/register/register.spec.ts" name="Register &gt; should create" time="0.085477025">
         </testcase>
-        <testcase classname="src/app/features/seller/dashboard/seller-dashboard.spec.ts" name="Product draft photos &gt; uploads on Save and retains the saved photo" time="0.006655271">
+        <testcase classname="src/app/features/auth/register/register.spec.ts" name="Register &gt; should invalidate fullName when it contains invalid special characters" time="0.012121776">
         </testcase>
-        <testcase classname="src/app/features/seller/dashboard/seller-dashboard.spec.ts" name="Product draft photos &gt; blocks cancellation and duplicate saves during upload" time="0.003721819">
+        <testcase classname="src/app/features/auth/register/register.spec.ts" name="Register &gt; should display backend field validation error when registration fails with 400" time="0.012089932">
         </testcase>
-        <testcase classname="src/app/features/seller/dashboard/seller-dashboard.spec.ts" name="Product draft photos &gt; deletes only new uploads after a failed save is canceled" time="0.009720865">
-        </testcase>
-        <testcase classname="src/app/features/seller/dashboard/seller-dashboard.spec.ts" name="Product draft photos &gt; does not upload a removed preview" time="0.009160195">
+        <testcase classname="src/app/features/auth/register/register.spec.ts" name="Register &gt; should display conflict error message when registration fails with 409" time="0.008952689">
         </testcase>
     </testsuite>
-    <testsuite name="src/app/features/seller/media-manager/media-manager.spec.ts" timestamp="2026-09-28T13:53:15.721Z" hostname="sandbox" tests="1" failures="0" errors="0" skipped="0" time="0.14824332">
-        <testcase classname="src/app/features/seller/media-manager/media-manager.spec.ts" name="MediaManager &gt; should create" time="0.146556911">
+    <testsuite name="src/app/features/products/product-list/product-list.spec.ts" timestamp="2026-09-28T14:01:00.634Z" hostname="sandbox" tests="1" failures="0" errors="0" skipped="0" time="0.112409689">
+        <testcase classname="src/app/features/products/product-list/product-list.spec.ts" name="ProductList &gt; should create" time="0.110569558">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/app/features/profile/update-profile-dialog/update-profile-dialog.spec.ts" timestamp="2026-09-28T14:01:00.634Z" hostname="sandbox" tests="4" failures="0" errors="0" skipped="0" time="0.134347334">
+        <testcase classname="src/app/features/profile/update-profile-dialog/update-profile-dialog.spec.ts" name="UpdateProfileDialog &gt; should create" time="0.094539661">
+        </testcase>
+        <testcase classname="src/app/features/profile/update-profile-dialog/update-profile-dialog.spec.ts" name="UpdateProfileDialog &gt; should hide avatar upload row when user is CLIENT" time="0.012916706">
+        </testcase>
+        <testcase classname="src/app/features/profile/update-profile-dialog/update-profile-dialog.spec.ts" name="UpdateProfileDialog &gt; should show avatar upload row when user is SELLER" time="0.013952412">
+        </testcase>
+        <testcase classname="src/app/features/profile/update-profile-dialog/update-profile-dialog.spec.ts" name="UpdateProfileDialog &gt; should not upload avatar if user is CLIENT even if onAvatarSelect is triggered" time="0.010980453">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/app/features/seller/dashboard/seller-dashboard.spec.ts" timestamp="2026-09-28T14:01:00.634Z" hostname="sandbox" tests="5" failures="0" errors="0" skipped="0" time="0.042979755">
+        <testcase classname="src/app/features/seller/dashboard/seller-dashboard.spec.ts" name="Product draft photos &gt; cancels without uploading or changing existing photos" time="0.014405322">
+        </testcase>
+        <testcase classname="src/app/features/seller/dashboard/seller-dashboard.spec.ts" name="Product draft photos &gt; uploads on Save and retains the saved photo" time="0.01146108">
+        </testcase>
+        <testcase classname="src/app/features/seller/dashboard/seller-dashboard.spec.ts" name="Product draft photos &gt; blocks cancellation and duplicate saves during upload" time="0.003652696">
+        </testcase>
+        <testcase classname="src/app/features/seller/dashboard/seller-dashboard.spec.ts" name="Product draft photos &gt; deletes only new uploads after a failed save is canceled" time="0.009379184">
+        </testcase>
+        <testcase classname="src/app/features/seller/dashboard/seller-dashboard.spec.ts" name="Product draft photos &gt; does not upload a removed preview" time="0.002497605">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/app/features/seller/media-manager/media-manager.spec.ts" timestamp="2026-09-28T14:01:00.635Z" hostname="sandbox" tests="1" failures="0" errors="0" skipped="0" time="0.135496571">
+        <testcase classname="src/app/features/seller/media-manager/media-manager.spec.ts" name="MediaManager &gt; should create" time="0.133466823">
         </testcase>
     </testsuite>
 </testsuites>
