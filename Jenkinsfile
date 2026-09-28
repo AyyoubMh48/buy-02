@@ -2,23 +2,15 @@ pipeline {
     agent any
 
     stages {
-        stage('Frontend Environment Check') {
+
+  
+        stage('Docker Check') {
             steps {
-                sh 'node --version'
-                sh 'npm --version'
-            }
-        }
-        stage('Frontend Tests') {
-            steps {
-                dir('frontend') {
-                    sh 'CI=true npm test -- --no-watch --no-progress'
-                }
+                sh 'docker version'
             }
         }
 
-        // =========================
-        // Backend Tests
-        // =========================
+
 
         stage('Product Service Tests') {
             steps {
@@ -47,19 +39,23 @@ pipeline {
         stage('Gateway Tests') {
             steps {
                 withCredentials([
-            file(credentialsId: 'buy01-env', variable: 'ENV_FILE')
-        ]) {
+                    file(
+                        credentialsId: 'buy01-env',
+                        variable: 'ENV_FILE'
+                    )
+                ]) {
                     dir('gateway') {
                         sh '''
-                    set +x
-                    set -a
-                    . "$ENV_FILE"
-                    set +a
+                            set +x
 
-                    ./mvnw test
-                '''
+                            set -a
+                            . "$ENV_FILE"
+                            set +a
+
+                            ./mvnw test
+                        '''
                     }
-        }
+                }
             }
         }
 
@@ -71,12 +67,11 @@ pipeline {
             }
         }
 
-        // =========================
-        // Backend Package
-        // =========================
 
+       
         stage('Package Backend') {
             steps {
+
                 dir('product-service') {
                     sh './mvnw package -DskipTests'
                 }
@@ -99,10 +94,8 @@ pipeline {
             }
         }
 
-        // =========================
-        // Check Artifacts
-        // =========================
 
+       
         stage('Check Backend Artifacts') {
             steps {
                 sh '''
@@ -124,35 +117,100 @@ pipeline {
             }
         }
 
-        // =========================
-        // Product Docker Image
-        // =========================
 
-        stage('Build Product Docker Image') {
+        stage('Frontend CI') {
             steps {
-                dir('product-service') {
-                    sh 'docker build -t product-service:${BUILD_NUMBER} .'
+                dir('frontend') {
+
+                    sh 'npm ci'
+
+                    sh 'CI=true npm test -- --no-watch --no-progress'
+
+                    sh 'npm run build'
+
+                    sh 'ls -la dist/frontend/browser'
                 }
             }
         }
 
-        stage('Check Docker Image') {
+
+
+        stage('Build Product Docker Image') {
             steps {
-                sh 'docker image ls product-service'
+                dir('product-service') {
+                    sh '''
+                        docker build \
+                            -t product-service:${BUILD_NUMBER} \
+                            .
+                    '''
+                }
             }
         }
-        stage('Frontend CI') {
+
+
+  
+        stage('Build Frontend Docker Image') {
             steps {
                 dir('frontend') {
-                    sh 'npm ci'
-                    sh 'CI=true npm test -- --no-watch --no-progress'
-                    sh 'npm run build'
+                    sh '''
+                        docker build \
+                            -t frontend:${BUILD_NUMBER} \
+                            .
+                    '''
+                }
+            }
+        }
+
+
+
+
+        stage('Check Docker Images') {
+            steps {
+                sh '''
+                    echo "=== Product Service Images ==="
+                    docker image ls product-service
+
+                    echo "=== Frontend Images ==="
+                    docker image ls frontend
+                '''
+            }
+        }
+
+
+        // ========================================
+        // 9. Validate Docker Compose
+        // ========================================
+
+        stage('Validate Compose') {
+            steps {
+                withCredentials([
+                    file(
+                        credentialsId: 'buy01-env',
+                        variable: 'ENV_FILE'
+                    )
+                ]) {
+                    sh '''
+                        set +x
+
+                        PRODUCT_IMAGE_TAG=${BUILD_NUMBER} \
+                        docker compose \
+                            --env-file "$ENV_FILE" \
+                            config > /dev/null
+
+                        echo "Docker Compose configuration is valid"
+                    '''
                 }
             }
         }
     }
 
+
+    // ========================================
+    // Final actions
+    // ========================================
+
     post {
+
         success {
             echo "Pipeline SUCCESS - Build #${BUILD_NUMBER}"
         }
@@ -162,7 +220,7 @@ pipeline {
         }
 
         always {
-            echo 'Pipeline finished.'
+            echo "Pipeline finished."
         }
     }
 }
