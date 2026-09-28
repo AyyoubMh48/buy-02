@@ -2,7 +2,6 @@ pipeline {
     agent any
 
     stages {
-
         stage('Docker Check') {
             steps {
                 sh 'docker version'
@@ -39,9 +38,20 @@ pipeline {
 
         stage('Gateway Tests') {
             steps {
-                dir('gateway') {
-                    sh './mvnw test'
-                }
+                withCredentials([
+            file(credentialsId: 'buy01-env', variable: 'ENV_FILE')
+        ]) {
+                    dir('gateway') {
+                        sh '''
+                    set +x
+                    set -a
+                    . "$ENV_FILE"
+                    set +a
+
+                    ./mvnw test
+                '''
+                    }
+        }
             }
         }
 
@@ -59,7 +69,6 @@ pipeline {
 
         stage('Package Backend') {
             steps {
-
                 dir('product-service') {
                     sh './mvnw package -DskipTests'
                 }
@@ -127,7 +136,6 @@ pipeline {
     }
 
     post {
-
         success {
             echo "Pipeline SUCCESS - Build #${BUILD_NUMBER}"
         }
@@ -137,7 +145,7 @@ pipeline {
         }
 
         always {
-            echo "Pipeline finished."
+            echo 'Pipeline finished.'
         }
     }
 }
