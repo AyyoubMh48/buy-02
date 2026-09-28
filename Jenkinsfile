@@ -1,8 +1,7 @@
 pipeline {
     agent any
 
-      stages {
-
+    stages {
         stage('Product Service Tests') {
             steps {
                 dir('product-service') {
