@@ -15,6 +15,7 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+
       MONGO_DATABASE: ${PRODUCT_MONGO_DATABASE}
       MONGO_USERNAME: ${PRODUCT_MONGO_USERNAME}
       MONGO_PASSWORD: ${PRODUCT_MONGO_PASSWORD}
@@ -56,6 +57,7 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+
       MONGO_DATABASE: ${MEDIA_MONGO_DATABASE}
       MONGO_USERNAME: ${MEDIA_MONGO_USERNAME}
       MONGO_PASSWORD: ${MEDIA_MONGO_PASSWORD}
@@ -97,6 +99,7 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+
       MONGO_DATABASE: ${USER_MONGO_DATABASE}
       MONGO_USERNAME: ${USER_MONGO_USERNAME}
       MONGO_PASSWORD: ${USER_MONGO_PASSWORD}
@@ -134,6 +137,7 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.7.1
     container_name: buy01-kafka
+    restart: unless-stopped
 
     ports:
       - "9092:9092"
@@ -184,13 +188,13 @@ services:
 
 
   # =========================================================
-  # Discovery
+  # Discovery Service
   # =========================================================
 
   discovery:
     image: discovery:${APP_IMAGE_TAG:?APP_IMAGE_TAG is required}
-
     container_name: buy01-discovery
+    restart: unless-stopped
 
     networks:
       - buy01-network
@@ -208,26 +212,19 @@ services:
 
 
   # =========================================================
-  # Gateway
+  # API Gateway
   # =========================================================
 
   gateway:
     image: gateway:${APP_IMAGE_TAG:?APP_IMAGE_TAG is required}
-
     container_name: buy01-gateway
-
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-check-certificate -q -O /dev/null https://127.0.0.1:8080/actuator/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 40s
+    restart: unless-stopped
 
     ports:
       - "${GATEWAY_PORT:-8444}:8080"
 
     volumes:
-      - ./certs/gateway-keystore.p12:/run/secrets/gateway-keystore.p12:ro
+      - /var/jenkins_home/deploy-secrets/buy01/certs/gateway-keystore.p12:/run/secrets/gateway-keystore.p12:ro
 
     environment:
       SERVER_SSL_ENABLED: "true"
@@ -257,6 +254,17 @@ services:
     networks:
       - buy01-network
 
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-check-certificate -q -O /dev/null https://127.0.0.1:8080/actuator/health || exit 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
 
   # =========================================================
   # User Service
@@ -264,15 +272,8 @@ services:
 
   user-service:
     image: user-service:${APP_IMAGE_TAG:?APP_IMAGE_TAG is required}
-
     container_name: buy01-user-service
-
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/actuator/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 40s
+    restart: unless-stopped
 
     environment:
       EUREKA_CLIENT_SERVICE_URL: >
@@ -305,6 +306,17 @@ services:
       - buy01-network
       - user-db-network
 
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1:8081/actuator/health || exit 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
 
   # =========================================================
   # Product Service
@@ -312,15 +324,8 @@ services:
 
   product-service:
     image: product-service:${APP_IMAGE_TAG:?APP_IMAGE_TAG is required}
-
     container_name: buy01-product-service
-
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/actuator/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 40s
+    restart: unless-stopped
 
     environment:
       EUREKA_CLIENT_SERVICE_URL: >
@@ -358,6 +363,17 @@ services:
       - buy01-network
       - product-db-network
 
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1:8082/actuator/health || exit 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
 
   # =========================================================
   # Media Service
@@ -365,15 +381,8 @@ services:
 
   media-service:
     image: media-service:${APP_IMAGE_TAG:?APP_IMAGE_TAG is required}
-
     container_name: buy01-media-service
-
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8083/actuator/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 40s
+    restart: unless-stopped
 
     environment:
       SERVER_PORT: 8083
@@ -416,6 +425,17 @@ services:
       - buy01-network
       - media-db-network
 
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1:8083/actuator/health || exit 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
 
   # =========================================================
   # Frontend
@@ -423,23 +443,15 @@ services:
 
   frontend:
     image: frontend:${APP_IMAGE_TAG:?APP_IMAGE_TAG is required}
-
     container_name: buy01-frontend
-
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-check-certificate -q -O /dev/null https://127.0.0.1:443/index.html || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 40s
+    restart: unless-stopped
 
     ports:
       - "4200:443"
 
     volumes:
-      - ./certs/gateway-keystore.p12:/run/secrets/gateway-keystore.p12:ro
-      - ./certs/gateway-keystore.crt:/etc/nginx/certs/gateway-keystore.crt:ro
-      - ./certs/gateway-keystore.key:/etc/nginx/certs/gateway-keystore.key:ro
+      - /var/jenkins_home/deploy-secrets/buy01/certs/gateway-keystore.crt:/etc/nginx/certs/gateway-keystore.crt:ro
+      - /var/jenkins_home/deploy-secrets/buy01/certs/gateway-keystore.key:/etc/nginx/certs/gateway-keystore.key:ro
 
     depends_on:
       gateway:
@@ -447,6 +459,17 @@ services:
 
     networks:
       - buy01-network
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-check-certificate -q -O /dev/null https://127.0.0.1:443/index.html || exit 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
 
 
 # =========================================================
