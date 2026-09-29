@@ -1,7 +1,7 @@
 FROM eclipse-temurin:17-jre-alpine
 
 WORKDIR /app
-
+RUN apk add --no-cache wget
 COPY target/*.jar app.jar
 
 EXPOSE 8082
