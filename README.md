@@ -469,36 +469,32 @@ unless you intentionally want to remove persistent database volumes.
 
 # Service Health
 
-Docker Compose includes health checks for infrastructure and selected services.
+Every service in the main Docker Compose stack has a health check:
 
-Examples include:
+| Services | Check |
+|---|---|
+| Product, media, and user MongoDB | Authenticated MongoDB ping |
+| Kafka | Broker responds to a topic-list request |
+| Discovery, gateway, user, product, and media services | `/actuator/health` returns a successful HTTP response |
+| Frontend | Nginx serves `/index.html` over HTTPS |
 
-```text
-MongoDB
-Kafka
-Discovery Service
-Media Service
-```
+Gateway and frontend probes use HTTPS with certificate verification disabled for the local certificate. Backend probes run inside their containers; no additional host ports are needed. The frontend waits for the gateway to become healthy before starting.
 
-Spring Boot services expose Actuator health endpoints such as:
+The separate Jenkins stack checks the Docker daemon with `docker info` and Jenkins through `/login`. The standalone media MongoDB stack also has an authenticated ping check.
 
-```text
-/actuator/health
-```
-
-Example:
+Start the platform and wait for all services to become healthy:
 
 ```bash
-curl http://localhost:8761/actuator/health
+APP_IMAGE_TAG=local docker compose --env-file .env up -d --wait --wait-timeout 240
 ```
 
-A healthy Spring Boot service should report:
+Inspect container health:
 
-```json
-{
-  "status": "UP"
-}
+```bash
+APP_IMAGE_TAG=local docker compose ps
 ```
+
+Health checks report failures through Docker's `unhealthy` status; they do not automatically restart unhealthy containers.
 
 ---
 

@@ -199,7 +199,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "wget -qO- http://localhost:8761/actuator/health | grep UP || exit 1"
+          "wget -q -O /dev/null http://127.0.0.1:8761/actuator/health || exit 1"
         ]
       interval: 10s
       timeout: 5s
@@ -215,6 +215,13 @@ services:
     image: gateway:${APP_IMAGE_TAG:?APP_IMAGE_TAG is required}
 
     container_name: buy01-gateway
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-check-certificate -q -O /dev/null https://127.0.0.1:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
 
     ports:
       - "${GATEWAY_PORT:-8444}:8080"
@@ -260,6 +267,13 @@ services:
 
     container_name: buy01-user-service
 
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
     environment:
       EUREKA_CLIENT_SERVICE_URL: >
         http://discovery:8761/eureka/
@@ -300,6 +314,13 @@ services:
     image: product-service:${APP_IMAGE_TAG:?APP_IMAGE_TAG is required}
 
     container_name: buy01-product-service
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
 
     environment:
       EUREKA_CLIENT_SERVICE_URL: >
@@ -346,6 +367,13 @@ services:
     image: media-service:${APP_IMAGE_TAG:?APP_IMAGE_TAG is required}
 
     container_name: buy01-media-service
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8083/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
 
     environment:
       SERVER_PORT: 8083
@@ -398,6 +426,13 @@ services:
 
     container_name: buy01-frontend
 
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-check-certificate -q -O /dev/null https://127.0.0.1:443/index.html || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
     ports:
       - "4200:443"
 
@@ -407,7 +442,8 @@ services:
       - ./certs/gateway-keystore.key:/etc/nginx/certs/gateway-keystore.key:ro
 
     depends_on:
-      - gateway
+      gateway:
+        condition: service_healthy
 
     networks:
       - buy01-network

@@ -3,6 +3,13 @@ services:
   docker:
     image: docker:dind
     container_name: jenkins-docker
+
+    healthcheck:
+      test: ["CMD", "docker", "info"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     privileged: true
     restart: unless-stopped
 
@@ -23,10 +30,18 @@ services:
       dockerfile: Dockerfile.jenkins
 
     container_name: jenkins
+
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--max-time", "5", "http://127.0.0.1:8080/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
     restart: unless-stopped
 
     depends_on:
-      - docker
+      docker:
+        condition: service_healthy
 
     ports:
       - "8085:8080"

@@ -1,10 +1,15 @@
 pipeline {
     agent any
 
+    options {
+        // Prevent two Jenkins builds from deploying at the same time
+        disableConcurrentBuilds()
+    }
+
     stages {
 
         // ========================================
-        // 1. Docker Environment
+        // 1. Docker Environment Check
         // ========================================
 
         stage('Docker Check') {
@@ -131,19 +136,23 @@ pipeline {
 
 
         // ========================================
-        // 5. Frontend
+        // 5. Frontend CI
         // ========================================
 
         stage('Frontend CI') {
             steps {
                 dir('frontend') {
 
+                    // Install exact dependencies from package-lock.json
                     sh 'npm ci'
 
+                    // Run tests once
                     sh 'CI=true npm test -- --no-watch --no-progress'
 
+                    // Production build
                     sh 'npm run build'
 
+                    // Check Angular build artifact
                     sh 'ls -la dist/frontend/browser'
                 }
             }
@@ -151,7 +160,7 @@ pipeline {
 
 
         // ========================================
-        // 6. Docker Images
+        // 6. Build Docker Images
         // ========================================
 
         stage('Build Product Image') {
@@ -228,7 +237,7 @@ pipeline {
 
 
         // ========================================
-        // 7. Check Complete Release
+        // 7. Check Complete Docker Release
         // ========================================
 
         stage('Check Docker Images') {
@@ -258,7 +267,61 @@ pipeline {
 
 
         // ========================================
-        // 8. Validate Docker Compose
+        // 8. Prepare TLS Certificates
+        // ========================================
+
+        stage('Prepare TLS Certificates') {
+            steps {
+                withCredentials([
+                    file(
+                        credentialsId: 'gateway-p12',
+                        variable: 'P12_FILE'
+                    ),
+
+                    file(
+                        credentialsId: 'gateway-crt',
+                        variable: 'CRT_FILE'
+                    ),
+
+                    file(
+                        credentialsId: 'gateway-key',
+                        variable: 'KEY_FILE'
+                    )
+                ]) {
+                    sh '''
+                        set +x
+
+                        CERT_DIR="/var/jenkins_home/deploy-secrets/buy01/certs"
+
+                        mkdir -p "$CERT_DIR"
+
+                        cp "$P12_FILE" \
+                           "$CERT_DIR/gateway-keystore.p12"
+
+                        cp "$CRT_FILE" \
+                           "$CERT_DIR/gateway-keystore.crt"
+
+                        cp "$KEY_FILE" \
+                           "$CERT_DIR/gateway-keystore.key"
+
+                        chmod 600 \
+                            "$CERT_DIR/gateway-keystore.p12"
+
+                        chmod 644 \
+                            "$CERT_DIR/gateway-keystore.crt"
+
+                        chmod 600 \
+                            "$CERT_DIR/gateway-keystore.key"
+
+                        echo "TLS certificates prepared."
+                    '''
+                }
+            }
+        }
+
+
+        // ========================================
+        // 9. Validate Docker Compose
         // ========================================
 
         stage('Validate Compose') {
@@ -274,12 +337,167 @@ pipeline {
 
                         APP_IMAGE_TAG=${BUILD_NUMBER} \
                         docker compose \
+                            -p buy01 \
                             --env-file "$ENV_FILE" \
                             config > /dev/null
 
-                        echo "Docker Compose configuration is valid"
+                        echo "Docker Compose configuration is valid."
                     '''
                 }
+            }
+        }
+
+
+        // ========================================
+        // 10. Automatic Deployment
+        // ========================================
+
+        stage('Deploy') {
+            steps {
+                withCredentials([
+                    file(
+                        credentialsId: 'buy01-env',
+                        variable: 'ENV_FILE'
+                    )
+                ]) {
+                    sh '''
+                        set +x
+
+                        echo "================================"
+                        echo "Deploying release #${BUILD_NUMBER}"
+                        echo "================================"
+
+                        APP_IMAGE_TAG=${BUILD_NUMBER} \
+                        docker compose \
+                            -p buy01 \
+                            --env-file "$ENV_FILE" \
+                            up -d
+
+                        echo "Release #${BUILD_NUMBER} containers started."
+                    '''
+                }
+            }
+        }
+
+
+        // ========================================
+        // 11. Post-Deployment Health Check
+        // ========================================
+
+        stage('Post-Deployment Health Check') {
+            steps {
+                sh '''
+                    set +x
+
+                    MAX_ATTEMPTS=18
+                    SLEEP_SECONDS=5
+
+                    check_container() {
+
+                        CONTAINER="$1"
+
+                        echo ""
+                        echo "--------------------------------"
+                        echo "Checking $CONTAINER"
+                        echo "--------------------------------"
+
+                        for i in $(seq 1 $MAX_ATTEMPTS); do
+
+                            STATE=$(docker inspect \
+                                --format='{{.State.Status}}' \
+                                "$CONTAINER" \
+                                2>/dev/null || echo "missing")
+
+                            HEALTH=$(docker inspect \
+                                --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' \
+                                "$CONTAINER" \
+                                2>/dev/null || echo "missing")
+
+                            echo "Attempt $i/$MAX_ATTEMPTS -> state=$STATE health=$HEALTH"
+
+                            # Container disappeared or crashed
+                            if [ "$STATE" = "exited" ] || \
+                               [ "$STATE" = "dead" ] || \
+                               [ "$STATE" = "missing" ]; then
+
+                                echo "ERROR: $CONTAINER stopped unexpectedly."
+
+                                return 1
+                            fi
+
+
+                            # Real Docker healthcheck succeeded
+                            if [ "$HEALTH" = "healthy" ]; then
+
+                                echo "$CONTAINER is healthy."
+
+                                return 0
+                            fi
+
+
+                            # Temporary fallback:
+                            # service has no Docker HEALTHCHECK yet,
+                            # but its main process is still running.
+                            if [ "$HEALTH" = "no-healthcheck" ] && \
+                               [ "$STATE" = "running" ]; then
+
+                                echo "$CONTAINER is running."
+                                echo "WARNING: no Docker healthcheck configured."
+
+                                return 0
+                            fi
+
+
+                            sleep $SLEEP_SECONDS
+                        done
+
+
+                        echo "ERROR: $CONTAINER did not become healthy within the timeout."
+
+                        return 1
+                    }
+
+
+                    # ==================================
+                    # Databases
+                    # ==================================
+
+                    check_container product-mongodb
+                    check_container media-mongodb
+                    check_container user-mongodb
+
+
+                    # ==================================
+                    # Infrastructure
+                    # ==================================
+
+                    check_container buy01-kafka
+                    check_container buy01-discovery
+
+
+                    # ==================================
+                    # Backend Services
+                    # ==================================
+
+                    check_container buy01-user-service
+                    check_container buy01-product-service
+                    check_container buy01-media-service
+                    check_container buy01-gateway
+
+
+                    # ==================================
+                    # Frontend
+                    # ==================================
+
+                    check_container buy01-frontend
+
+
+                    echo ""
+                    echo "================================"
+                    echo "Release #${BUILD_NUMBER}"
+                    echo "passed deployment checks."
+                    echo "================================"
+                '''
             }
         }
     }
@@ -294,30 +512,39 @@ pipeline {
         success {
             echo """
             ==========================================
-            BUILD SUCCESS
-            Release: ${BUILD_NUMBER}
+            PIPELINE SUCCESS
+
+            Release #${BUILD_NUMBER}
+            successfully built and deployed.
 
             Images:
+
             product-service:${BUILD_NUMBER}
             user-service:${BUILD_NUMBER}
             media-service:${BUILD_NUMBER}
             gateway:${BUILD_NUMBER}
             discovery:${BUILD_NUMBER}
             frontend:${BUILD_NUMBER}
+
             ==========================================
             """
         }
+
 
         failure {
             echo """
             ==========================================
             PIPELINE FAILED
-            Build: ${BUILD_NUMBER}
 
-            Deployment was NOT performed.
+            Build #${BUILD_NUMBER}
+
+            Check the failed Jenkins stage
+            and its logs for details.
+
             ==========================================
             """
         }
+
 
         always {
             echo "Pipeline finished."
