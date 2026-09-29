@@ -221,6 +221,8 @@ services:
       - /var/jenkins_home/deploy-secrets/buy01/certs/gateway-keystore.p12:/run/secrets/gateway-keystore.p12:ro
 
     environment:
+      SERVER_PORT: "8080"
+
       SERVER_SSL_ENABLED: "true"
 
       SERVER_SSL_KEY_STORE: "file:/run/secrets/gateway-keystore.p12"
@@ -265,6 +267,8 @@ services:
     restart: unless-stopped
 
     environment:
+      SERVER_PORT: "8081"
+
       EUREKA_CLIENT_SERVICE_URL: "http://discovery:8761/eureka/"
 
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://discovery:8761/eureka/"
@@ -311,6 +315,8 @@ services:
     restart: unless-stopped
 
     environment:
+      SERVER_PORT: "8082"
+
       EUREKA_CLIENT_SERVICE_URL: "http://discovery:8761/eureka/"
 
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://discovery:8761/eureka/"
@@ -441,7 +447,7 @@ services:
 
 
 # =========================================================
-# Volumes
+# Persistent Volumes
 # =========================================================
 volumes:
 
@@ -453,7 +459,7 @@ volumes:
 
 
 # =========================================================
-# Networks
+# Docker Networks
 # =========================================================
 networks:
 
