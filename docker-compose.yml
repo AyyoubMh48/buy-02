@@ -227,25 +227,21 @@ services:
       - /var/jenkins_home/deploy-secrets/buy01/certs/gateway-keystore.p12:/run/secrets/gateway-keystore.p12:ro
 
     environment:
-      SERVER_SSL_ENABLED: "true"
+     SERVER_SSL_ENABLED: "true"
 
-      SERVER_SSL_KEY_STORE: >
-        file:/run/secrets/gateway-keystore.p12
+     SERVER_SSL_KEY_STORE: "file:/run/secrets/gateway-keystore.p12"
 
-      SERVER_SSL_KEY_STORE_PASSWORD: >
-        ${SERVER_SSL_KEY_STORE_PASSWORD}
+     SERVER_SSL_KEY_STORE_PASSWORD: "${SERVER_SSL_KEY_STORE_PASSWORD}"
 
-      SERVER_SSL_KEY_STORE_TYPE: PKCS12
+     SERVER_SSL_KEY_STORE_TYPE: "PKCS12"
 
-      SERVER_SSL_KEY_ALIAS: gateway
+     SERVER_SSL_KEY_ALIAS: "gateway"
+ 
+     EUREKA_CLIENT_SERVICE_URL: "http://discovery:8761/eureka/"
 
-      EUREKA_CLIENT_SERVICE_URL: >
-        http://discovery:8761/eureka/
+     EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://discovery:8761/eureka/"
 
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: >
-        http://discovery:8761/eureka/
-
-      JWT_SECRET: ${JWT_SECRET}
+     JWT_SECRET: "${JWT_SECRET}"
 
     depends_on:
       discovery:
