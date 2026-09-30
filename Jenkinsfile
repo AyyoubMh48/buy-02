@@ -703,6 +703,9 @@ pipeline {
 
 
         always {
+            // Archive and publish JUnit test reports for all microservices
+            junit testResults: '**/target/surefire-reports/*.xml', allowEmptyResults: true
+
             echo "Pipeline finished."
         }
     }

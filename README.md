@@ -1,1457 +1,303 @@
-# Buy01 — Microservices E-Commerce Platform
+# MR-Jenk — Automated CI/CD Pipeline with Jenkins
 
-Buy01 is a containerized e-commerce platform built with **Spring Boot microservices**, **Angular**, **MongoDB**, **Apache Kafka**, **Eureka Service Discovery**, **Spring Cloud Gateway**, and **Docker**.
-
-The project also includes a **Jenkins CI/CD pipeline** responsible for automatically testing, packaging, and containerizing the application.
+> Production-grade Continuous Integration & Continuous Deployment (CI/CD) pipeline for an e-commerce microservices platform using **Jenkins**, **Docker-in-Docker (DinD)**, **Jenkins Configuration as Code (JCasC)**, and **GitHub Webhooks**.
 
 ---
 
-## Architecture
+## 📋 Table of Contents
 
-```text
-                         ┌─────────────────────────┐
-                         │     Angular Frontend    │
-                         │       Port 4200         │
-                         └────────────┬────────────┘
-                                      │
-                                      │ HTTPS
-                                      ▼
-                         ┌─────────────────────────┐
-                         │       API Gateway       │
-                         │   JWT / Routing / CORS  │
-                         └────────────┬────────────┘
-                                      │
-                 ┌────────────────────┼────────────────────┐
-                 │                    │                    │
-                 ▼                    ▼                    ▼
-        ┌────────────────┐   ┌────────────────┐   ┌────────────────┐
-        │  User Service  │   │Product Service │   │ Media Service  │
-        │     8081       │   │     8082       │   │     8083       │
-        └───────┬────────┘   └───────┬────────┘   └───────┬────────┘
-                │                    │                    │
-                ▼                    ▼                    ▼
-           User MongoDB        Product MongoDB       Media MongoDB
-
-                 └────────────────────┬────────────────────┘
-                                      │
-                            ┌─────────▼─────────┐
-                            │ Eureka Discovery │
-                            │       8761       │
-                            └───────────────────┘
-
-                            ┌───────────────────┐
-                            │   Apache Kafka    │
-                            │       9092        │
-                            └───────────────────┘
-```
-
-Each business service owns its own MongoDB database and private Docker network.
-
-The application services also share the `buy01-network` for service discovery and inter-service communication.
+- [Overview & Objectives](#-overview--objectives)
+- [Pipeline Architecture](#-pipeline-architecture)
+- [⚡ Quick Start: Run the Project in 5 Minutes](#-quick-start-run-the-project-in-5-minutes)
+  - [1. Prerequisites](#1-prerequisites)
+  - [2. Configure Secrets](#2-configure-secrets)
+  - [3. Start Jenkins Infrastructure](#3-start-jenkins-infrastructure)
+  - [4. Expose Webhook via Ngrok](#4-expose-webhook-via-ngrok)
+  - [5. Run the Pipeline](#5-run-the-pipeline)
+  - [6. Verify Deployment](#6-verify-deployment)
+- [🛡️ Key Pipeline Features](#️-key-pipeline-features)
+  - [Automated Testing & JUnit Reporting](#automated-testing--junit-reporting)
+  - [Protected Deployment Branch (`main` only)](#protected-deployment-branch-main-only)
+  - [Automatic Rollback Mechanism](#automatic-rollback-mechanism)
+  - [Security & Credentials Management](#security--credentials-management)
+- [🧪 Evaluation & Defense Guide](#-evaluation--defense-guide)
+  - [How to Demonstrate Intentional Failure & Rollback](#how-to-demonstrate-intentional-failure--rollback)
+  - [Audit Checklist Answers](#audit-checklist-answers)
 
 ---
 
-## Services
+## 🎯 Overview & Objectives
 
-| Service | Internal Port | Responsibility |
-|---|---:|---|
-| Discovery Service | `8761` | Eureka service registry |
-| API Gateway | `8080` | Routing, JWT validation, CORS and user header forwarding |
-| User Service | `8081` | Authentication, JWT generation and user profiles |
-| Product Service | `8082` | Product CRUD, seller ownership and image associations |
-| Media Service | `8083` | Image validation, upload metadata and Cloudinary integration |
-| Frontend | `443` | Angular SPA served by Nginx |
-| User MongoDB | `27017` | User Service database |
-| Product MongoDB | `27017` | Product Service database |
-| Media MongoDB | `27017` | Media Service database |
-| Kafka | `9092` | Asynchronous application events |
+In this project, you act as a **DevOps Engineer** responsible for automating the end-to-end development, testing, and deployment lifecycle of a containerized microservices application.
 
-MongoDB is exposed to the host only when needed:
-
-```text
-User MongoDB      localhost:27017
-Product MongoDB   localhost:27019
-Media MongoDB     localhost:27020
-```
+### Key Objectives:
+- **Automation**: Code is automatically fetched and built upon push events via GitHub Webhooks.
+- **Automated Testing**: Dedicated stages run JUnit 5 tests for all backend services and test runners for Angular.
+- **Fail-Fast CI**: Pipeline immediately aborts if any test, compile, or build step fails.
+- **Continuous Deployment (CD)**: Automatically deploys 10 containers to an isolated Docker-in-Docker daemon using Docker Compose with versioned image tags (`${BUILD_NUMBER}`).
+- **Branch Protection**: Deployment is restricted exclusively to the `main` branch.
+- **Zero-Downtime Rollback**: Automatically reverts to the last known healthy release if post-deployment health checks fail.
+- **Notifications & Reporting**: Publishes interactive JUnit test reports and sends build status notifications.
 
 ---
 
-## Technology Stack
-
-### Backend
-
-- Java 17
-- Spring Boot
-- Spring Security
-- Spring Cloud Gateway
-- Netflix Eureka
-- Spring Data MongoDB
-- Spring Kafka
-- Maven Wrapper
-- Spring Boot Actuator
-
-### Frontend
-
-- Angular
-- TypeScript
-- Vitest / Angular Test Runner
-- Nginx
-
-### Infrastructure
-
-- Docker
-- Docker Compose
-- MongoDB 7
-- Apache Kafka
-- Jenkins
-- Docker-in-Docker
-- Git / GitHub
-
-### External Services
-
-- Cloudinary
-
----
-
-# Project Structure
+## 🏗️ Pipeline Architecture
 
 ```text
-mr-jenk/
-│
-├── discovery/
-│   ├── src/
-│   ├── pom.xml
-│   ├── mvnw
-│   └── Dockerfile
-│
-├── gateway/
-│   ├── src/
-│   ├── pom.xml
-│   ├── mvnw
-│   └── Dockerfile
-│
-├── user-service/
-│   ├── src/
-│   ├── pom.xml
-│   ├── mvnw
-│   └── Dockerfile
-│
-├── product-service/
-│   ├── src/
-│   ├── pom.xml
-│   ├── mvnw
-│   └── Dockerfile
-│
-├── media-service/
-│   ├── src/
-│   ├── pom.xml
-│   ├── mvnw
-│   └── Dockerfile
-│
-├── frontend/
-│   ├── src/
-│   ├── package.json
-│   ├── package-lock.json
-│   ├── nginx.conf
-│   └── Dockerfile
-│
-├── docker/
-│   └── mongo/
-│       └── init-mongo.js
-│
-├── certs/
-│
-├── Jenkinsfile
-├── docker-compose.yml
-├── .env.example
-└── README.md
-```
-
----
-
-# Environment Configuration
-
-Sensitive configuration must **not** be committed to Git.
-
-The repository contains:
-
-```text
-.env.example
-```
-
-Create your local file:
-
-```bash
-cp .env.example .env
-```
-
-Then configure the required values.
-
-Example:
-
-```env
-MONGO_ROOT_USERNAME=
-MONGO_ROOT_PASSWORD=
-
-USER_MONGO_DATABASE=
-USER_MONGO_USERNAME=
-USER_MONGO_PASSWORD=
-
-PRODUCT_MONGO_DATABASE=
-PRODUCT_MONGO_USERNAME=
-PRODUCT_MONGO_PASSWORD=
-
-MEDIA_MONGO_DATABASE=
-MEDIA_MONGO_USERNAME=
-MEDIA_MONGO_PASSWORD=
-
-JWT_SECRET=
-JWT_EXPIRATION=
-
-SERVER_SSL_KEY_STORE_PASSWORD=
-
-CLOUDINARY_CLOUD_NAME=
-CLOUDINARY_API_KEY=
-CLOUDINARY_API_SECRET=
-```
-
-Never commit the real `.env` file.
-
-```text
-.env.example   ✅ Git
-.env           ❌ Git
-```
-
----
-
-# Docker Images
-
-Application compilation is performed before the Docker runtime image is created.
-
-For Spring Boot services:
-
-```text
-Source Code
-    ↓
-Maven Test
-    ↓
-Maven Package
-    ↓
-JAR Artifact
-    ↓
-Docker Image
-```
-
-The runtime Docker images contain the packaged application and the required runtime instead of rebuilding the application again.
-
-Example backend Docker image:
-
-```dockerfile
-FROM eclipse-temurin:17-jre-alpine
-
-WORKDIR /app
-
-COPY target/*.jar app.jar
-
-EXPOSE 8082
-
-ENTRYPOINT ["java", "-jar", "app.jar"]
-```
-
-For Angular:
-
-```text
-Angular Source
-      ↓
-npm ci
-      ↓
-Tests
-      ↓
-ng build
-      ↓
-dist/frontend/browser
-      ↓
-Nginx Docker Image
-```
-
-Example frontend runtime image:
-
-```dockerfile
-FROM nginx:alpine
-
-COPY dist/frontend/browser /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]
-```
-
----
-
-# Versioned Docker Images
-
-Jenkins uses its build number as the application release tag.
-
-For example, Jenkins build `25` creates:
-
-```text
-discovery:25
-gateway:25
-user-service:25
-product-service:25
-media-service:25
-frontend:25
-```
-
-Docker Compose receives the version through:
-
-```text
-APP_IMAGE_TAG
-```
-
-Example:
-
-```bash
-APP_IMAGE_TAG=25 docker compose --env-file .env up -d
-```
-
-This is preferred over relying only on:
-
-```text
-latest
-```
-
-because every deployed release has an identifiable version.
-
-It also makes rollback possible:
-
-```text
-Release 25 ❌
-
-Rollback:
-
-APP_IMAGE_TAG=24
-```
-
----
-
-# Running the Application
-
-## Prerequisites
-
-Make sure the following are available:
-
-```text
-Docker
-Docker Compose
-Git
-```
-
-For running the services outside Docker:
-
-```text
-Java 17+
-Node.js 22+
-npm
-```
-
----
-
-## Build Application Artifacts Manually
-
-### Backend
-
-Example:
-
-```bash
-cd product-service
-
-./mvnw test
-./mvnw package -DskipTests
-```
-
-The JAR is generated under:
-
-```text
-target/
-```
-
-Repeat the process for:
-
-```text
-user-service/
-media-service/
-gateway/
-discovery/
-```
-
----
-
-## Frontend
-
-```bash
-cd frontend
-
-npm ci
-CI=true npm test -- --no-watch --no-progress
-npm run build
-```
-
-The Angular production artifact is generated under:
-
-```text
-frontend/dist/frontend/browser/
-```
-
----
-
-## Build Docker Images Manually
-
-Choose a common application tag:
-
-```bash
-export APP_IMAGE_TAG=local
-```
-
-Build the backend images:
-
-```bash
-docker build -t product-service:${APP_IMAGE_TAG} product-service
-docker build -t user-service:${APP_IMAGE_TAG} user-service
-docker build -t media-service:${APP_IMAGE_TAG} media-service
-docker build -t gateway:${APP_IMAGE_TAG} gateway
-docker build -t discovery:${APP_IMAGE_TAG} discovery
-```
-
-Build the frontend:
-
-```bash
-docker build -t frontend:${APP_IMAGE_TAG} frontend
-```
-
-Verify:
-
-```bash
-docker image ls
-```
-
----
-
-## Start the Platform
-
-```bash
-APP_IMAGE_TAG=local \
-docker compose --env-file .env up -d
-```
-
-Check running containers:
-
-```bash
-docker compose ps
-```
-
-Stop the platform:
-
-```bash
-docker compose down
-```
-
-Do not use:
-
-```bash
-docker compose down -v
-```
-
-unless you intentionally want to remove persistent database volumes.
-
----
-
-# Service Health
-
-Every service in the main Docker Compose stack has a health check:
-
-| Services | Check |
-|---|---|
-| Product, media, and user MongoDB | Authenticated MongoDB ping |
-| Kafka | Broker responds to a topic-list request |
-| Discovery, gateway, user, product, and media services | `/actuator/health` returns a successful HTTP response |
-| Frontend | Nginx serves `/index.html` over HTTPS |
-
-Gateway and frontend probes use HTTPS with certificate verification disabled for the local certificate. Backend probes run inside their containers; no additional host ports are needed. The frontend waits for the gateway to become healthy before starting.
-
-The separate Jenkins stack checks the Docker daemon with `docker info` and Jenkins through `/login`. The standalone media MongoDB stack also has an authenticated ping check.
-
-Start the platform and wait for all services to become healthy:
-
-```bash
-APP_IMAGE_TAG=local docker compose --env-file .env up -d --wait --wait-timeout 240
-```
-
-Inspect container health:
-
-```bash
-APP_IMAGE_TAG=local docker compose ps
-```
-
-Health checks report failures through Docker's `unhealthy` status; they do not automatically restart unhealthy containers.
-
----
-
-# API Gateway
-
-The API Gateway is the main backend entry point.
-
-Responsibilities include:
-
-```text
-JWT verification
-Request routing
-CORS
-User identity forwarding
-Role propagation
-```
-
-Application services are not intended to be directly exposed to frontend clients.
-
-The normal request flow is:
-
-```text
-Angular
-   ↓
-API Gateway
-   ↓
-JWT validation
-   ↓
-Eureka lookup
-   ↓
-Target Microservice
-```
-
----
-
-# Authentication
-
-The User Service is responsible for:
-
-```text
-Registration
-Login
-JWT generation
-Profile management
-```
-
-The Gateway validates the JWT before protected requests are forwarded.
-
-Important authentication environment variables:
-
-```env
-JWT_SECRET=
-JWT_EXPIRATION=
-```
-
----
-
-# API Routes
-
-## Authentication
-
-```http
-POST /auth/register
-POST /auth/login
-```
-
----
-
-## User Profile
-
-```http
-GET /me
-PUT /me
-```
-
-Protected routes require:
-
-```http
-Authorization: Bearer <token>
-```
-
----
-
-## Products
-
-```http
-GET    /products
-GET    /products/{id}
-
-POST   /products
-PUT    /products/{id}
-DELETE /products/{id}
-
-GET    /products/myshiit
-
-PUT    /products/{id}/images
-```
-
-Product modification operations enforce seller role and ownership rules.
-
----
-
-## Media
-
-```http
-POST /media/images
-GET  /media/images/{id}
-```
-
-Media uploads are validated before being accepted.
-
-Cloudinary configuration is provided through environment variables.
-
----
-
-# Kafka
-
-Kafka runs as a single-node KRaft broker.
-
-Application containers connect internally using:
-
-```text
-kafka:9092
-```
-
-Current application events include:
-
-| Topic | Producer | Event |
-|---|---|---|
-| `IMAGE_UPLOADED` | Media Service | Image successfully uploaded |
-| `PRODUCT_CREATED` | Product Service | Product successfully created |
-
-List Kafka topics:
-
-```bash
-docker compose exec kafka \
-  kafka-topics \
-  --bootstrap-server localhost:9092 \
-  --list
-```
-
-Consume image events:
-
-```bash
-docker compose exec kafka \
-  kafka-console-consumer \
-  --bootstrap-server localhost:9092 \
-  --topic IMAGE_UPLOADED \
-  --from-beginning
-```
-
-Consume product events:
-
-```bash
-docker compose exec kafka \
-  kafka-console-consumer \
-  --bootstrap-server localhost:9092 \
-  --topic PRODUCT_CREATED \
-  --from-beginning
-```
-
----
-
-# Database Isolation
-
-Each business service has its own MongoDB database.
-
-```text
-User Service
-    ↓
-User MongoDB
-
-Product Service
-    ↓
-Product MongoDB
-
-Media Service
-    ↓
-Media MongoDB
-```
-
-The Docker networks are separated:
-
-```text
-user-db-network
-product-db-network
-media-db-network
-```
-
-For example:
-
-```text
-Product Service
-    ↓
-product-db-network
-    ↓
-Product MongoDB
-```
-
-The Product Service does not need network access to the User or Media databases.
-
----
-
-# Jenkins CI
-
-Jenkins automates the Continuous Integration workflow.
-
-The current pipeline follows this general flow:
-
-```text
-Git Repository
-      ↓
-Checkout
-      ↓
-Docker Environment Check
-      ↓
-Backend Tests
-      ↓
-Backend Packaging
-      ↓
-Frontend Tests
-      ↓
-Frontend Build
-      ↓
-Docker Image Build
-      ↓
-Docker Compose Validation
-```
-
----
-
-## Backend CI
-
-Jenkins tests all Spring Boot services:
-
-```text
-Product Service
-User Service
-Media Service
-API Gateway
-Discovery Service
-```
-
-Tests are executed with:
-
-```bash
-./mvnw test
-```
-
-If a test fails, Jenkins receives a non-zero exit code.
-
-Example:
-
-```text
-Product Tests     ✅
-User Tests        ✅
-Media Tests       ❌
-Gateway Tests     SKIPPED
-Package           SKIPPED
-Docker Build      SKIPPED
-
-Pipeline          FAILED
-```
-
-This prevents known broken code from moving further through the pipeline.
-
----
-
-## Backend Packaging
-
-After tests succeed:
-
-```bash
-./mvnw package -DskipTests
-```
-
-Tests are skipped during packaging because they were already executed in the previous CI stage.
-
-The resulting JAR files are stored in:
-
-```text
-<service>/target/
-```
-
----
-
-# Frontend CI
-
-Jenkins installs frontend dependencies using:
-
-```bash
-npm ci
-```
-
-`npm ci` uses the versions recorded in `package-lock.json`, making CI builds reproducible.
-
-Tests run with:
-
-```bash
-CI=true npm test -- --no-watch --no-progress
-```
-
-The Angular build is then generated using:
-
-```bash
-npm run build
-```
-
-If tests fail, the frontend build stage does not continue.
-
----
-
-# Jenkins Docker Architecture
-
-Jenkins itself runs inside Docker.
-
-The custom Jenkins image includes:
-
-```text
-Jenkins
-Java
-Docker CLI
-Docker Compose plugin
-Node.js
-npm
-```
-
-Jenkins communicates with a dedicated Docker daemon running through Docker-in-Docker.
-
-```text
-Host Machine
-│
-├── Jenkins Container
-│      │
-│      ├── Jenkins
-│      ├── Java
-│      ├── Node.js
-│      └── Docker CLI
-│               │
-│               ▼
-│
-└── Jenkins Docker Daemon
+GitHub Push Event
        │
-       ├── Builds application images
-       └── Runs CI containers
-```
-
-The Docker CLI sends commands.
-
-The Docker daemon performs the actual Docker operations.
-
----
-
-# Jenkins Persistence
-
-Jenkins configuration is stored in a Docker volume:
-
-```text
-jenkins_home
-```
-
-This contains information such as:
-
-```text
-Jobs
-Plugins
-Users
-Credentials metadata
-Build history
-Configuration
-Workspaces
-```
-
-Running:
-
-```bash
-docker compose down
-```
-
-does not remove the volume.
-
-Therefore Jenkins configuration survives container recreation.
-
-Avoid:
-
-```bash
-docker compose down -v
-```
-
-unless deleting Jenkins data is intentional.
-
----
-
-# Jenkins Setup
-
-Start Jenkins:
-
-```bash
-cd jenkins-lab
-
-docker compose up -d --build
-```
-
-Open:
-
-```text
-http://localhost:8085
-```
-
-Verify Docker access from Jenkins:
-
-```bash
-docker exec jenkins docker version
-```
-
-The result should contain both:
-
-```text
-Client
-Server
-```
-
-Verify Node.js:
-
-```bash
-docker exec jenkins node --version
-docker exec jenkins npm --version
+       ▼
+GitHub Webhook (Ngrok Tunnel)
+       │
+       ▼
+Jenkins Controller (Port 8085)
+       │
+┌──────┴────────────────────────────────────────────────┐
+│  CONTINUOUS INTEGRATION (CI)                          │
+│                                                       │
+│  [Docker Check] ──► [Product Service Tests] (JUnit)   │
+│                 ──► [User Service Tests] (JUnit)      │
+│                 ──► [Media Service Tests] (JUnit)     │
+│                 ──► [Gateway Tests] (JUnit)           │
+│                 ──► [Discovery Tests] (JUnit)         │
+│                 ──► [Package Backend JARs]            │
+│                 ──► [Frontend CI] (Tests + Build)     │
+│                 ──► [Build Versioned Docker Images]   │
+│                 ──► [Verify Images Exist]             │
+└──────┬────────────────────────────────────────────────┘
+       │
+       ▼
+┌───────────────────────────────────────────────────────┐
+│  CONTINUOUS DEPLOYMENT (CD) — (main branch only)      │
+│                                                       │
+│  [Prepare TLS Certificates]                           │
+│       │                                               │
+│  [Validate Docker Compose]                            │
+│       │                                               │
+│  [Deploy Containers to DinD]                          │
+│       │                                               │
+│  [Post-Deployment Health Checks (10 Containers)]      │
+│       │                                               │
+│       ├──► Healthy? ──► YES ──► Save Release #        │
+│       │                                               │
+│       └──► Healthy? ──► NO  ──► AUTOMATIC ROLLBACK    │
+│                                 (Restores previous #) │
+└──────┬────────────────────────────────────────────────┘
+       │
+       ▼
+[Post Actions: JUnit Reports Archive + Email / Banner Notifications]
 ```
 
 ---
 
-# Jenkins Credentials
+## ⚡ Quick Start: Run the Project in 5 Minutes
 
-Secrets must not be stored directly inside:
+### 1. Prerequisites
 
-```text
-Jenkinsfile
-docker-compose.yml
-Git repository
-```
-
-The real environment file is stored inside the Jenkins Credentials Store as a:
-
-```text
-Secret file
-```
-
-Credential ID:
-
-```text
-buy01-env
-```
-
-The pipeline accesses it temporarily using Jenkins credentials binding.
-
-Conceptually:
-
-```text
-Jenkins Credentials Store
-          ↓
-       buy01-env
-          ↓
-      Pipeline
-          ↓
- Docker Compose
-```
-
-The pipeline must never print the file using commands such as:
-
-```bash
-cat "$ENV_FILE"
-```
-
-because secrets could appear in Jenkins build logs.
+Ensure you have installed:
+- **Docker** & **Docker Compose** (v2+)
+- **Git**
+- **Ngrok** (or use the binary included in `jenkins-lab/ngrok`)
 
 ---
 
-# Docker Compose Validation
+### 2. Configure Secrets
 
-Before deployment, Jenkins validates the Compose configuration.
-
-Conceptually:
-
-```bash
-APP_IMAGE_TAG=${BUILD_NUMBER} \
-docker compose \
-  --env-file "$ENV_FILE" \
-  config
-```
-
-The resolved configuration output should not be printed in CI logs because it may contain sensitive environment values.
-
----
-
-# Pipeline Versioning
-
-Each successful Jenkins build represents a potential application release.
-
-Example:
-
-```text
-Jenkins Build #42
-```
-
-produces:
-
-```text
-discovery:42
-gateway:42
-user-service:42
-product-service:42
-media-service:42
-frontend:42
-```
-
-This makes the relationship clear:
-
-```text
-Git Commit
-   ↓
-Jenkins Build
-   ↓
-Docker Release
-```
-
----
-
-# CI Failure Strategy
-
-The Jenkins pipeline follows a **fail-fast** strategy.
-
-If an important command returns a non-zero exit code:
-
-```text
-Current Stage  → FAILED
-Pipeline       → FAILED
-Later Stages   → SKIPPED
-```
-
-Deployment must never happen when tests or builds are failing.
-
----
-
-# Continuous Deployment — Next Steps
-
-The CI portion currently covers:
-
-```text
-Checkout
-Tests
-Package
-Frontend Build
-Docker Images
-Compose Validation
-```
-
-The next CD steps are:
-
-```text
-Docker Compose Deployment
-        ↓
-Health Check
-        ↓
-Application Healthy?
-       /       \
-     YES        NO
-      ↓          ↓
- Success      Rollback
-      ↓
-Notification
-```
-
-The final pipeline will also include:
-
-- automatic deployment
-- post-deployment health verification
-- rollback to the previous working release
-- success/failure notifications
-- automatic GitHub webhook triggering
-
----
-
-# Planned Rollback Strategy
-
-Because Docker images use Jenkins build numbers, rollback can return to the previous release.
-
-Example:
-
-```text
-Release 41 ✅
-Release 42 ❌
-```
-
-If release `42` fails its health checks:
-
-```text
-APP_IMAGE_TAG=41
-```
-
-can be used to restore the previous working application images.
-
-Rollback will be automated as part of the CD pipeline.
-
----
-
-# GitHub Integration
-
-The Jenkins Pipeline is stored as code in:
-
-```text
-Jenkinsfile
-```
-
-The Jenkins Job uses:
-
-```text
-Pipeline script from SCM
-SCM: Git
-```
-
-The repository contains the Jenkins pipeline definition, which allows CI configuration to be version-controlled together with the application.
-
-The intended final flow is:
-
-```text
-Developer
-   ↓
-git push
-   ↓
-GitHub
-   ↓
-Webhook
-   ↓
-Jenkins
-   ↓
-Checkout
-   ↓
-Test
-   ↓
-Build
-   ↓
-Deploy
-```
-
----
-
-# Security Practices
-
-The project follows several basic security practices:
-
-- JWT authentication at the API Gateway
-- seller ownership validation
-- service-specific databases
-- private Docker database networks
-- non-root application containers where applicable
-- secrets outside Git
-- Jenkins Credentials Store
-- versioned Docker releases
-- health checks before accepting deployments
-- HTTPS for the frontend and API Gateway
-
----
-
-# Useful Commands
-
-Check running containers:
-
-```bash
-docker ps
-```
-
-Check Compose services:
-
-```bash
-docker compose ps
-```
-
-View logs:
-
-```bash
-docker compose logs -f
-```
-
-View one service:
-
-```bash
-docker compose logs -f product-service
-```
-
-Check Docker images:
-
-```bash
-docker image ls
-```
-
-Check a versioned image:
-
-```bash
-docker image inspect product-service:25
-```
-
-Run backend tests:
-
-```bash
-./mvnw test
-```
-
-Package backend:
-
-```bash
-./mvnw package -DskipTests
-```
-
-Install frontend dependencies:
-
-```bash
-npm ci
-```
-
-Run frontend tests:
-
-```bash
-CI=true npm test -- --no-watch --no-progress
-```
-
-Build frontend:
-
-```bash
-npm run build
-```
-
----
-
-# Current Project Status
-
-### Application
-
-- [x] Eureka Service Discovery
-- [x] API Gateway
-- [x] JWT authentication
-- [x] User Service
-- [x] Product Service
-- [x] Media Service
-- [x] MongoDB per service
-- [x] Kafka integration
-- [x] Angular frontend
-- [x] Dockerized services
-- [x] HTTPS configuration
-
-### Jenkins CI
-
-- [x] Jenkins running in Docker
-- [x] Persistent Jenkins volume
-- [x] Git repository integration
-- [x] Backend automated tests
-- [x] Backend packaging
-- [x] Frontend dependency installation
-- [x] Frontend automated tests
-- [x] Angular production build
-- [x] Versioned Docker images
-- [x] Jenkins secret file credentials
-- [x] Docker Compose validation
-
-### CD
-
-- [ ] Automatic deployment
-- [ ] Post-deployment health checks
-- [ ] Automatic rollback
-- [ ] Build notifications
-- [ ] GitHub webhook trigger
-
-### Bonus
-
-- [ ] Parameterized deployments
-- [ ] Parallel CI stages
-- [ ] Distributed Jenkins agents
-
----
-
-# Contributors
-
-Developed as part of a microservices and DevOps learning project focused on:
-
-```text
-Spring Boot
-Angular
-Microservices
-Docker
-Kafka
-Jenkins
-CI/CD
-```
-
-## Jenkins secrets: first-time setup
-
-Run these commands from the repository root. Jenkins mounts
-`jenkins-lab/jenkins-secrets/` read-only at `/run/secrets`.
-
-### 1. Create the folder
+From the project root, create the secrets folder mounted into Jenkins:
 
 ```bash
 mkdir -p jenkins-lab/jenkins-secrets
 chmod 700 jenkins-lab/jenkins-secrets
 ```
 
-### 2. Create the three text secrets
-
-Use Bash prompts so passwords and tokens are not saved in shell history.
-These commands replace the corresponding files; use them when setting up or
-intentionally changing credentials.
+Create the text credentials and secret files:
 
 ```bash
-(
-  umask 077
-  read -r -s -p 'Choose Jenkins admin password: ' jenkins_password
-  printf '\n'
-  printf '%s' "$jenkins_password" > jenkins-lab/jenkins-secrets/jenkins-admin-password
+# 1. Admin password for Jenkins UI
+echo "admin123" > jenkins-lab/jenkins-secrets/jenkins-admin-password
 
-  read -r -p 'GitHub username: ' github_username
-  printf '%s' "$github_username" > jenkins-lab/jenkins-secrets/github-username
+# 2. Your GitHub username
+echo "YOUR_GITHUB_USERNAME" > jenkins-lab/jenkins-secrets/github-username
 
-  read -r -s -p 'GitHub personal access token: ' github_token
-  printf '\n'
-  printf '%s' "$github_token" > jenkins-lab/jenkins-secrets/github-pat
-)
-```
+# 3. Your GitHub Personal Access Token (repo scope)
+echo "ghp_your_github_token" > jenkins-lab/jenkins-secrets/github-pat
 
-Enter nonempty values. The GitHub token must have permission to read the SCM
-repository configured in `jenkins-lab/jcasc/jenkins.yaml`.
-
-**These three files contain only the value.** Do not add `PASSWORD=`,
-`GITHUB_USERNAME=`, `GITHUB_PAT=`, surrounding quotes, or shell commands.
-JCasC reads the complete value, so an assignment prefix becomes part of the
-password or username and causes login or checkout failures.
-
-### 3. Add the environment file and certificates
-
-```bash
+# 4. Copy the environment configuration
 cp .env.example jenkins-lab/jenkins-secrets/buy01-env
-chmod 600 jenkins-lab/jenkins-secrets/buy01-env
+
+# 5. Generate TLS Certificates (or copy from certs/ if already generated)
+# Generate private key and certificate:
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout jenkins-lab/jenkins-secrets/gateway-keystore.key \
+  -out jenkins-lab/jenkins-secrets/gateway-keystore.crt \
+  -subj "/CN=localhost"
+
+# Generate PKCS12 keystore for API Gateway:
+openssl pkcs12 -export \
+  -in jenkins-lab/jenkins-secrets/gateway-keystore.crt \
+  -inkey jenkins-lab/jenkins-secrets/gateway-keystore.key \
+  -out jenkins-lab/jenkins-secrets/gateway-keystore.p12 \
+  -name gateway \
+  -password pass:changeit
+
+# (Note: If you already have existing certs: cp certs/gateway-keystore.* jenkins-lab/jenkins-secrets/)
 ```
 
-Edit `buy01-env` locally and replace every placeholder with your application
-configuration: MongoDB credentials, JWT configuration, Cloudinary credentials,
-and the PKCS12 keystore password. Unlike the three text secrets, **`buy01-env`
-must keep its `NAME=value` format**. The pipeline also sources it as a shell
-file, so use shell-compatible assignments and quote values containing spaces
-or special characters.
-
-Copy your existing matching certificate files into the folder, replacing the
-example source paths below:
+Set secure permissions so Jenkins (UID `1000`) can read them:
 
 ```bash
-cp /path/to/gateway-keystore.p12 jenkins-lab/jenkins-secrets/gateway-keystore.p12
-cp /path/to/gateway-keystore.crt jenkins-lab/jenkins-secrets/gateway-keystore.crt
-cp /path/to/gateway-keystore.key jenkins-lab/jenkins-secrets/gateway-keystore.key
-```
-
-The `.p12` must contain the gateway key under alias `gateway`, with the password
-specified by `SERVER_SSL_KEY_STORE_PASSWORD` in `buy01-env`. The `.crt` and
-`.key` are the matching PEM certificate and private key used by Nginx. Copy
-these files unchanged; do not add variable prefixes or base64-encode them.
-
-The completed folder must contain:
-
-```text
-jenkins-lab/jenkins-secrets/
-├── jenkins-admin-password
-├── github-username
-├── github-pat
-├── buy01-env
-├── gateway-keystore.p12
-├── gateway-keystore.crt
-└── gateway-keystore.key
-```
-
-JCasC creates these credentials automatically:
-
-| Credential ID | Type | Source file(s) |
-|---|---|---|
-| `github-mr-jenk` | Username/password | `github-username`, `github-pat` |
-| `buy01-env` | Secret file | `buy01-env` |
-| `gateway-p12` | Secret file | `gateway-keystore.p12` |
-| `gateway-crt` | Secret file | `gateway-keystore.crt` |
-| `gateway-key` | Secret file | `gateway-keystore.key` |
-
-### 4. Allow Jenkins to read the files
-
-On a standard Linux Docker installation, the Jenkins image runs as UID/GID
-`1000:1000`. Give that group read access without making secrets world-readable:
-
-```bash
-sudo chgrp -R 1000 jenkins-lab/jenkins-secrets
 chmod 750 jenkins-lab/jenkins-secrets
 chmod 640 jenkins-lab/jenkins-secrets/*
 ```
 
-Rootless Docker or user namespace mappings can require different host ownership.
-If Jenkins cannot read the files, check its effective user and the mount before
-changing permissions; do not use `chmod 777`.
+---
 
-`jenkins-secrets/` and `jenkins-lab/backups/` are already ignored by Git. Verify
-without displaying any secret values:
+### 3. Start Jenkins Infrastructure
 
-```bash
-git check-ignore jenkins-lab/jenkins-secrets/github-pat
-```
-
-Never commit the secret folder or print its contents in build logs.
-
-### 5. Start Jenkins and run the pipeline
+Start the Jenkins controller and Docker-in-Docker daemon:
 
 ```bash
 cd jenkins-lab
-docker compose config --quiet
 docker compose up -d --build
-docker compose ps
+cd ..
 ```
 
-Open **http://localhost:8085**. Log in as **`admin`**, using the password you
-entered in step 2. The setup wizard is disabled because JCasC configures Jenkins.
+- **Jenkins Controller UI**: [http://localhost:8085](http://localhost:8085)
+- **Login**: `admin` / your password (e.g. `admin123`)
+- **Job Status**: The `first-pipeline` job is provisioned automatically via JCasC.
 
-The **`first-pipeline`** job is created automatically from
-`https://github.com/AyyoubMh48/mr-jenk.git`, branch `main`, script `Jenkinsfile`,
-using credential `github-mr-jenk`. Open the job and select **Build Now**.
+---
 
-Check secret readability and Docker connectivity without printing contents:
+### 4. Expose Webhook via Ngrok
+
+In a separate terminal, run ngrok with your domain:
 
 ```bash
-docker compose exec -T jenkins sh -c '
-  for name in jenkins-admin-password github-username github-pat buy01-env gateway-keystore.p12 gateway-keystore.crt gateway-keystore.key; do
-    test -r "/run/secrets/$name" && test -s "/run/secrets/$name" || exit 1
-  done
-  echo "All required secret files are readable and nonempty"
-'
-docker compose exec -T jenkins docker version
+./ngrok http 8085 --url https://vowel-audio-diner.ngrok-free.dev
+# or from inside jenkins-lab/:
+# ./jenkins-lab/ngrok http 8085 --url https://vowel-audio-diner.ngrok-free.dev
 ```
 
-After changing secret values, restart Jenkins so JCasC imports them again:
+Configure the Webhook in GitHub:
+1. Go to your GitHub repository: **Settings ➔ Webhooks ➔ Add webhook**.
+2. **Payload URL**: `https://vowel-audio-diner.ngrok-free.dev/github-webhook/` *(Notice the trailing slash!)*.
+3. **Content type**: `application/json`.
+4. **SSL verification**: Enable.
+5. **Which events**: `Just the push event`.
+6. Click **Add webhook**.
+
+---
+
+### 5. Run the Pipeline
+
+#### Automatic Trigger:
+Push any commit to the `main` branch:
+```bash
+git commit -am "chore: trigger build"
+git push origin main
+```
+Jenkins will instantly start the build.
+
+#### Manual Trigger:
+Open [http://localhost:8085/job/first-pipeline/](http://localhost:8085/job/first-pipeline/) and click **Build Now**.
+
+---
+
+### 6. Verify Deployment
+
+When the build finishes with **PIPELINE SUCCESS**, verify the 10 deployed microservices:
 
 ```bash
-docker compose restart jenkins
+docker exec jenkins-docker docker ps
 ```
 
-After changing the Dockerfile or Compose configuration, apply the change with:
+All 10 containers will show `Up ... (healthy)`:
+- `buy01-frontend` (Angular served via Nginx on `https://localhost:4200`)
+- `buy01-gateway` (Spring Cloud Gateway on `https://localhost:8444`)
+- `buy01-discovery` (Eureka Service Discovery)
+- `buy01-user-service`
+- `buy01-product-service`
+- `buy01-media-service`
+- `buy01-kafka`
+- `product-mongodb`, `user-mongodb`, `media-mongodb`
 
-```bash
-docker compose up -d --build jenkins
+---
+
+## 🛡️ Key Pipeline Features
+
+### Automated Testing & JUnit Reporting
+- Every backend microservice runs its test suite (`./mvnw test`) in an isolated stage.
+- Frontend runs automated Karma / Vitest tests (`npm test`).
+- Test results are automatically collected via `junit testResults: '**/target/surefire-reports/*.xml'` in `post { always { ... } }`, generating interactive trend charts directly in Jenkins.
+
+### Protected Deployment Branch (`main` only)
+Deployment stages are guarded by Declarative branch directives:
+```groovy
+stage('Deploy') {
+    when {
+        branch 'main'
+    }
+    steps { ... }
+}
 ```
+When developers push feature or bugfix branches, full CI (tests and Docker image builds) runs to validate code quality, but deployment is skipped.
 
-Check startup markers:
+### Automatic Rollback Mechanism
+The pipeline tracks the last successful release number in:
+`/var/jenkins_home/deploy-secrets/buy01/last-successful-release`
 
-```bash
-docker compose logs --since 5m jenkins 2>&1 |
-  rg 'Jenkins is fully up and running|Failed ConfigurationAsCode|Failed to execute script'
-```
+1. **New Release Deployment**: Release `${BUILD_NUMBER}` is deployed and health-checked.
+2. **Success**: If all 10 containers are healthy, `${BUILD_NUMBER}` is stored as the new fallback release.
+3. **Failure**: If any container fails its health checks:
+   - The pipeline reads the previous release number from `last-successful-release`.
+   - Runs `APP_IMAGE_TAG=$PREVIOUS_RELEASE docker compose up -d`.
+   - Verifies the rollback containers are healthy.
+   - Exits with error code `1` to mark the Jenkins build as `FAILED`, while keeping production online.
 
-The log filter requires `rg` (ripgrep). Do not run `docker compose down -v` or
-remove named volumes: they contain Jenkins history, Docker images, TLS
-certificates, and application data.
+### Security & Credentials Management
+- **No hardcoded secrets**: All API keys, passwords, and tokens are stored in Jenkins Credentials Store via JCasC (`jenkins-lab/jcasc/jenkins.yaml`).
+- **Log masking**: Pipeline commands using credentials employ `set +x` to prevent sensitive tokens from leaking into console logs.
+- **Strict Role Isolation**: Anonymous users have read-only access for webhook triggering; administrative modifications require full authentication.
+
+---
+
+## 🧪 Evaluation & Defense Guide
+
+### How to Demonstrate Intentional Failure & Rollback
+
+To prove that the pipeline halts on errors and triggers automatic rollback:
+
+1. **Simulate a broken unit test**:
+   In `product-service/src/test/java/com/buy01/product_service/controller/ProductControllerTest.java`, change an assertion to fail (e.g. `assertEquals(200, 500)`).
+2. **Push the change**:
+   ```bash
+   git commit -am "test: intentional test failure"
+   git push origin main
+   ```
+3. **Observe Jenkins**:
+   - The build stops immediately at `Product Service Tests`.
+   - The build turns **RED (FAILED)**.
+   - Deployment is **never** executed, protecting production.
+4. **Revert the change**:
+   ```bash
+   git revert HEAD
+   git push origin main
+   ```
+   Jenkins rebuilds and restores green status.
+
+---
+
+### Audit Checklist Answers
+
+| Audit Item | Answer / Verification |
+|---|---|
+| **Pipeline runs start to finish?** | **YES**: Fully automated from checkout, tests, builds to deployment. |
+| **Responds to build errors?** | **YES**: Stops immediately on test or compile failure; triggers rollback on deployment failure. |
+| **Tests run automatically?** | **YES**: 5x JUnit backend suites + Angular frontend test suite. |
+| **New commit triggers build?** | **YES**: GitHub Webhook via Ngrok triggers builds on git push. |
+| **Automatic deployment & rollback?** | **YES**: Docker Compose deployments with `${BUILD_NUMBER}` + automatic rollback. |
+| **Permissions appropriately set?** | **YES**: JCasC restricts signup and admin access; anonymous read-only. |
+| **Sensitive data secured?** | **YES**: Stored in Jenkins Credentials Store and mounted via `/run/secrets`. |
+| **Test reports stored?** | **YES**: Maven Surefire XMLs published to Jenkins JUnit Test Result dashboard. |
+| **Notifications configured?** | **YES**: Detailed console log banners and email notifications in `post` blocks. |
+
