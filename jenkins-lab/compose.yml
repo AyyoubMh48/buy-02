@@ -1,42 +1,51 @@
 services:
 
+  # ==========================================
+  # Docker daemon for Jenkins
+  # ==========================================
+
   docker:
+
     image: docker:dind
+
     container_name: jenkins-docker
 
-    healthcheck:
-      test: ["CMD", "docker", "info"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
     privileged: true
+
     restart: unless-stopped
 
     environment:
       DOCKER_TLS_CERTDIR: /certs
 
     volumes:
+      - jenkins-docker-tls:/certs
       - jenkins-docker-certs:/certs/client
       - jenkins_home:/var/jenkins_home
+      - jenkins-docker-data:/var/lib/docker
+
+    healthcheck:
+      test: ["CMD", "docker", "info"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
     networks:
       - jenkins-network
 
 
+  # ==========================================
+  # Jenkins Controller
+  # ==========================================
+
   jenkins:
+
     build:
       context: .
       dockerfile: Dockerfile.jenkins
 
     container_name: jenkins
 
-    healthcheck:
-      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--max-time", "5", "http://127.0.0.1:8080/login"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 60s
     restart: unless-stopped
 
     depends_on:
@@ -48,22 +57,81 @@ services:
       - "50000:50000"
 
     environment:
+
+      # Docker daemon
       DOCKER_HOST: tcp://docker:2376
+
       DOCKER_CERT_PATH: /certs/client
+
       DOCKER_TLS_VERIFY: "1"
 
+
+      # ======================================
+      # Jenkins Configuration as Code
+      # ======================================
+
+      CASC_JENKINS_CONFIG: /casc/jenkins.yaml
+
+      CASC_STRICT_SECRET_RESOLUTION: "true"
+
+      SECRETS: /run/secrets
+
+
+      # Skip Jenkins setup wizard
+      JAVA_OPTS: "-Djenkins.install.runSetupWizard=false"
+
+
     volumes:
+
+      # Jenkins persistent data
       - jenkins_home:/var/jenkins_home
+
+      # Docker TLS
       - jenkins-docker-certs:/certs/client:ro
+
+      # JCasC files
+      - type: bind
+        source: ./jcasc
+        target: /casc
+        read_only: true
+        bind:
+          create_host_path: false
+
+      # Secrets
+      - type: bind
+        source: ./jenkins-secrets
+        target: /run/secrets
+        read_only: true
+        bind:
+          create_host_path: false
+
 
     networks:
       - jenkins-network
 
 
+
+# ==========================================
+# Network
+# ==========================================
+
 networks:
+
   jenkins-network:
 
 
+
+# ==========================================
+# Volumes
+# ==========================================
+
 volumes:
+
   jenkins_home:
+
   jenkins-docker-certs:
+
+  jenkins-docker-data:
+
+  # Persist the CA and server certificates as well as the existing client volume.
+  jenkins-docker-tls:

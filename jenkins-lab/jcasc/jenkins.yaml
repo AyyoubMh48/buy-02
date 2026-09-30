@@ -1,0 +1,183 @@
+# Text secrets use native JCasC lookup: ${filename} -> /run/secrets/filename.
+# Secret files use readFileBase64 so their exact bytes survive import.
+# The plain-credentials plugin supplies the file/secretBytes credential schema.
+jenkins:
+
+  systemMessage: |
+    Buy01 Jenkins
+
+    This Jenkins controller is configured automatically
+    using Jenkins Configuration as Code (JCasC).
+
+  numExecutors: 1
+
+  mode: NORMAL
+
+  scmCheckoutRetryCount: 2
+
+
+  # ==========================================
+  # Jenkins Authentication
+  # ==========================================
+
+  securityRealm:
+    local:
+      allowsSignup: false
+
+      users:
+        - id: "admin"
+          password: "${jenkins-admin-password}"
+
+
+  # ==========================================
+  # Authorization
+  # ==========================================
+
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+
+
+
+# ==========================================
+# Jenkins Credentials
+# ==========================================
+
+credentials:
+
+  system:
+
+    domainCredentials:
+
+      - credentials:
+
+
+          # ==================================
+          # GitHub
+          # ==================================
+
+          - usernamePassword:
+
+              scope: GLOBAL
+
+              id: "github-mr-jenk"
+
+              description: "GitHub credentials for mr-jenk"
+
+              username: "${github-username}"
+
+              password: "${github-pat}"
+
+
+          # ==================================
+          # Buy01 .env
+          # ==================================
+
+          - file:
+
+              scope: GLOBAL
+
+              id: "buy01-env"
+
+              description: "Buy01 application environment"
+
+              fileName: ".env"
+
+              secretBytes: "${readFileBase64:/run/secrets/buy01-env}"
+
+
+          # ==================================
+          # Gateway PKCS12
+          # ==================================
+
+          - file:
+
+              scope: GLOBAL
+
+              id: "gateway-p12"
+
+              description: "Gateway PKCS12 keystore"
+
+              fileName: "gateway-keystore.p12"
+
+              secretBytes: "${readFileBase64:/run/secrets/gateway-keystore.p12}"
+
+
+          # ==================================
+          # Gateway certificate
+          # ==================================
+
+          - file:
+
+              scope: GLOBAL
+
+              id: "gateway-crt"
+
+              description: "Gateway public certificate"
+
+              fileName: "gateway-keystore.crt"
+
+              secretBytes: "${readFileBase64:/run/secrets/gateway-keystore.crt}"
+
+
+          # ==================================
+          # Gateway private key
+          # ==================================
+
+          - file:
+
+              scope: GLOBAL
+
+              id: "gateway-key"
+
+              description: "Gateway private key"
+
+              fileName: "gateway-keystore.key"
+
+              secretBytes: "${readFileBase64:/run/secrets/gateway-keystore.key}"
+
+
+
+# ==========================================
+# Jenkins Job
+# ==========================================
+
+jobs:
+
+  - script: |
+
+      pipelineJob('first-pipeline') {
+
+          description('Buy01 CI/CD Pipeline - managed by JCasC')
+
+          definition {
+
+              cpsScm {
+
+                  scm {
+
+                      git {
+
+                          remote {
+
+                              url('https://github.com/AyyoubMh48/mr-jenk.git')
+
+                              credentials('github-mr-jenk')
+
+                             }
+
+                          branch('*/main')
+
+                      }
+
+                  }
+
+                  scriptPath('Jenkinsfile')
+
+                  lightweight()
+
+              }
+
+          }
+
+        }
