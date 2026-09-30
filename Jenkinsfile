@@ -272,6 +272,12 @@ pipeline {
         // ========================================
 
         stage('Prepare TLS Certificates') {
+            when {
+                expression {
+                    def branch = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ''
+                    return branch.endsWith('/main') || branch == 'main' || branch == ''
+                }
+            }
             steps {
                 withCredentials([
                     file(
@@ -324,6 +330,12 @@ pipeline {
         // ========================================
 
         stage('Validate Compose') {
+            when {
+                expression {
+                    def branch = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ''
+                    return branch.endsWith('/main') || branch == 'main' || branch == ''
+                }
+            }
             steps {
                 withCredentials([
                     file(
@@ -352,6 +364,12 @@ pipeline {
         // ========================================
 
         stage('Deploy') {
+            when {
+                expression {
+                    def branch = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ''
+                    return branch.endsWith('/main') || branch == 'main' || branch == ''
+                }
+            }
             steps {
                 withCredentials([
                     file(
@@ -384,6 +402,12 @@ pipeline {
         // ========================================
 
         stage('Post-Deployment Health Check') {
+            when {
+                expression {
+                    def branch = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ''
+                    return branch.endsWith('/main') || branch == 'main' || branch == ''
+                }
+            }
             steps {
                 withCredentials([
                     file(
@@ -609,45 +633,62 @@ pipeline {
     post {
 
         success {
-            // 1. Keep your formatted console log
-            echo """
-            ==========================================
-            PIPELINE SUCCESS
+            script {
+                def branch = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ''
+                boolean isMain = branch.endsWith('/main') || branch == 'main' || branch == ''
 
-            Release #${BUILD_NUMBER}
-            successfully built, deployed
-            and passed health checks.
+                if (isMain) {
+                    echo """
+                    ==========================================
+                    PIPELINE SUCCESS
 
-            Images:
+                    Release #${BUILD_NUMBER}
+                    successfully built, deployed
+                    and passed health checks.
 
-            product-service:${BUILD_NUMBER}
-            user-service:${BUILD_NUMBER}
-            media-service:${BUILD_NUMBER}
-            gateway:${BUILD_NUMBER}
-            discovery:${BUILD_NUMBER}
-            frontend:${BUILD_NUMBER}
+                    Images:
 
-            ==========================================
-            """
+                    product-service:${BUILD_NUMBER}
+                    user-service:${BUILD_NUMBER}
+                    media-service:${BUILD_NUMBER}
+                    gateway:${BUILD_NUMBER}
+                    discovery:${BUILD_NUMBER}
+                    frontend:${BUILD_NUMBER}
 
-            // 2. Send email notification to team
-            mail to: 'ayoubzone01@gmail.com',
-                 subject: "✅ SUCCESS: Release #${BUILD_NUMBER} Deployed",
-                 body: """
-                 Hello Team,
+                    ==========================================
+                    """
 
-                 Release #${BUILD_NUMBER} was successfully built, tested, and deployed!
-                 All microservices and database containers passed health checks.
+                    try {
+                        mail to: 'ayoubzone01@gmail.com',
+                             subject: "✅ SUCCESS: Release #${BUILD_NUMBER} Deployed",
+                             body: """
+                             Hello Team,
 
-                 
-                 Regards,
-                 Jenkins CI/CD
-                 """
+                             Release #${BUILD_NUMBER} was successfully built, tested, and deployed!
+                             All microservices and database containers passed health checks.
+
+                             Regards,
+                             Jenkins CI/CD
+                             """
+                    } catch (Exception e) {
+                        echo "Warning: Email notification skipped (SMTP not configured): ${e.message}"
+                    }
+                } else {
+                    echo """
+                    ==========================================
+                    CI PIPELINE SUCCESS
+
+                    Branch: ${branch}
+                    Build #${BUILD_NUMBER} passed all tests and packaging.
+                    Deployment was skipped (main branch only).
+                    ==========================================
+                    """
+                }
+            }
         }
 
 
         failure {
-            // 1. Keep your formatted console log
             echo """
             ==========================================
             PIPELINE FAILED
@@ -664,18 +705,23 @@ pipeline {
             ==========================================
             """
 
-            // 2. Send failure alert to team
-            mail to: 'ayoubzone01@gmail.com',
-                 subject: "❌ FAILURE: Build #${BUILD_NUMBER}",
-                 body: """
-                 Attention Team,
+            script {
+                try {
+                    mail to: 'ayoubzone01@gmail.com',
+                         subject: "❌ FAILURE: Build #${BUILD_NUMBER}",
+                         body: """
+                         Attention Team,
 
-                 Build #${BUILD_NUMBER} has FAILED.
-                 If a previous release was available, an automatic rollback was attempted.
+                         Build #${BUILD_NUMBER} has FAILED.
+                         If a previous release was available, an automatic rollback was attempted.
 
-                 Regards,
-                 Jenkins CI/CD
-                 """
+                         Regards,
+                         Jenkins CI/CD
+                         """
+                } catch (Exception e) {
+                    echo "Warning: Email notification skipped (SMTP not configured): ${e.message}"
+                }
+            }
         }
 
 
