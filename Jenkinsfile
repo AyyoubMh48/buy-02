@@ -5,7 +5,7 @@ pipeline {
         // Prevent two deployments from running at the same time
         disableConcurrentBuilds()
     }
-    
+
     triggers {
         // Triggers the build instantly when GitHub sends a webhook push event
         githubPush()
@@ -639,9 +639,7 @@ pipeline {
                  Release #${BUILD_NUMBER} was successfully built, tested, and deployed!
                  All microservices and database containers passed health checks.
 
-                 Job URL: ${env.BUILD_URL}
-                 Git Commit: ${env.GIT_COMMIT}
-
+                 
                  Regards,
                  Jenkins CI/CD
                  """
@@ -674,9 +672,6 @@ pipeline {
 
                  Build #${BUILD_NUMBER} has FAILED.
                  If a previous release was available, an automatic rollback was attempted.
-
-                 Please check the Jenkins console log:
-                 ${env.BUILD_URL}console
 
                  Regards,
                  Jenkins CI/CD
