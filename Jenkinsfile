@@ -2,6 +2,7 @@ pipeline {
     agent any
 
     options {
+        // Prevent two deployments from running at the same time
         disableConcurrentBuilds()
     }
 
@@ -374,95 +375,223 @@ pipeline {
 
 
         // ========================================
-        // 11. Post-Deployment Health Check
+        // 11. Health Check + Automatic Rollback
         // ========================================
 
         stage('Post-Deployment Health Check') {
             steps {
-                sh '''
-                    set +x
+                withCredentials([
+                    file(
+                        credentialsId: 'buy01-env',
+                        variable: 'ENV_FILE'
+                    )
+                ]) {
+                    sh '''
+                        set +x
 
-                    MAX_ATTEMPTS=18
-                    SLEEP_SECONDS=5
+                        MAX_ATTEMPTS=18
+                        SLEEP_SECONDS=5
 
-                    check_container() {
+                        RELEASE_FILE="/var/jenkins_home/deploy-secrets/buy01/last-successful-release"
 
-                        CONTAINER="$1"
+
+                        # ==================================
+                        # Check one container
+                        # ==================================
+
+                        check_container() {
+
+                            CONTAINER="$1"
+
+                            echo ""
+                            echo "--------------------------------"
+                            echo "Checking $CONTAINER"
+                            echo "--------------------------------"
+
+                            for i in $(seq 1 $MAX_ATTEMPTS); do
+
+                                STATE=$(docker inspect \
+                                    --format='{{.State.Status}}' \
+                                    "$CONTAINER" \
+                                    2>/dev/null || echo "missing")
+
+                                HEALTH=$(docker inspect \
+                                    --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' \
+                                    "$CONTAINER" \
+                                    2>/dev/null || echo "missing")
+
+                                echo "Attempt $i/$MAX_ATTEMPTS -> state=$STATE health=$HEALTH"
+
+
+                                # Container crashed
+                                if [ "$STATE" = "exited" ] || \
+                                   [ "$STATE" = "dead" ] || \
+                                   [ "$STATE" = "missing" ]; then
+
+                                    echo "ERROR: $CONTAINER stopped unexpectedly."
+
+                                    return 1
+                                fi
+
+
+                                # Docker healthcheck succeeded
+                                if [ "$HEALTH" = "healthy" ]; then
+
+                                    echo "$CONTAINER is healthy."
+
+                                    return 0
+                                fi
+
+
+                                sleep $SLEEP_SECONDS
+                            done
+
+
+                            echo "ERROR: $CONTAINER did not become healthy."
+
+                            return 1
+                        }
+
+
+                        # ==================================
+                        # Check whole platform
+                        # ==================================
+
+                        health_check() {
+
+                            # Databases
+                            check_container product-mongodb || return 1
+                            check_container media-mongodb || return 1
+                            check_container user-mongodb || return 1
+
+                            # Infrastructure
+                            check_container buy01-kafka || return 1
+                            check_container buy01-discovery || return 1
+
+                            # Backend
+                            check_container buy01-user-service || return 1
+                            check_container buy01-product-service || return 1
+                            check_container buy01-media-service || return 1
+                            check_container buy01-gateway || return 1
+
+                            # Frontend
+                            check_container buy01-frontend || return 1
+
+                            return 0
+                        }
+
+
+                        # ==========================================
+                        # Check NEW release
+                        # ==========================================
 
                         echo ""
-                        echo "--------------------------------"
-                        echo "Checking $CONTAINER"
-                        echo "--------------------------------"
-
-                        for i in $(seq 1 $MAX_ATTEMPTS); do
-
-                            STATE=$(docker inspect \
-                                --format='{{.State.Status}}' \
-                                "$CONTAINER" \
-                                2>/dev/null || echo "missing")
-
-                            HEALTH=$(docker inspect \
-                                --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' \
-                                "$CONTAINER" \
-                                2>/dev/null || echo "missing")
-
-                            echo "Attempt $i/$MAX_ATTEMPTS -> state=$STATE health=$HEALTH"
-
-                            if [ "$STATE" = "exited" ] || \
-                               [ "$STATE" = "dead" ] || \
-                               [ "$STATE" = "missing" ]; then
-
-                                echo "ERROR: $CONTAINER stopped unexpectedly."
-                                return 1
-                            fi
-
-                            if [ "$HEALTH" = "healthy" ]; then
-
-                                echo "$CONTAINER is healthy."
-                                return 0
-                            fi
-
-                            if [ "$HEALTH" = "no-healthcheck" ] && \
-                               [ "$STATE" = "running" ]; then
-
-                                echo "$CONTAINER is running."
-                                echo "WARNING: no Docker healthcheck configured."
-                                return 0
-                            fi
-
-                            sleep $SLEEP_SECONDS
-                        done
-
-                        echo "ERROR: $CONTAINER did not become healthy within the timeout."
-                        return 1
-                    }
+                        echo "================================"
+                        echo "Checking release #${BUILD_NUMBER}"
+                        echo "================================"
 
 
-                    # Databases
-                    check_container product-mongodb
-                    check_container media-mongodb
-                    check_container user-mongodb
+                        if health_check; then
 
-                    # Infrastructure
-                    check_container buy01-kafka
-                    check_container buy01-discovery
-
-                    # Backend services
-                    check_container buy01-user-service
-                    check_container buy01-product-service
-                    check_container buy01-media-service
-                    check_container buy01-gateway
-
-                    # Frontend
-                    check_container buy01-frontend
+                            echo ""
+                            echo "================================"
+                            echo "RELEASE HEALTHY"
+                            echo "Release #${BUILD_NUMBER}"
+                            echo "================================"
 
 
-                    echo ""
-                    echo "================================"
-                    echo "Release #${BUILD_NUMBER}"
-                    echo "passed deployment checks."
-                    echo "================================"
-                '''
+                            # Save current release as last good release
+
+                            mkdir -p "$(dirname "$RELEASE_FILE")"
+
+                            echo "${BUILD_NUMBER}" > "$RELEASE_FILE"
+
+                            echo "Saved release #${BUILD_NUMBER} as last successful release."
+
+                            exit 0
+                        fi
+
+
+                        # ==========================================
+                        # New release failed
+                        # ==========================================
+
+                        echo ""
+                        echo "================================"
+                        echo "RELEASE FAILED"
+                        echo "Release #${BUILD_NUMBER}"
+                        echo "================================"
+
+
+                        # ==========================================
+                        # Check if a previous release exists
+                        # ==========================================
+
+                        if [ ! -f "$RELEASE_FILE" ]; then
+
+                            echo "No previous successful release exists."
+                            echo "Rollback cannot be performed."
+
+                            exit 1
+                        fi
+
+
+                        PREVIOUS_RELEASE=$(cat "$RELEASE_FILE")
+
+
+                        echo ""
+                        echo "Previous successful release: #$PREVIOUS_RELEASE"
+                        echo "Starting automatic rollback..."
+
+
+                        # ==========================================
+                        # Rollback deployment
+                        # ==========================================
+
+                        APP_IMAGE_TAG=$PREVIOUS_RELEASE \
+                        docker compose \
+                            -p buy01 \
+                            --env-file "$ENV_FILE" \
+                            up -d
+
+
+                        echo ""
+                        echo "Rollback deployment started."
+                        echo "Checking rollback health..."
+
+
+                        # ==========================================
+                        # Verify rollback
+                        # ==========================================
+
+                        if health_check; then
+
+                            echo ""
+                            echo "================================"
+                            echo "ROLLBACK SUCCESSFUL"
+                            echo ""
+                            echo "Failed release: #${BUILD_NUMBER}"
+                            echo "Running release: #$PREVIOUS_RELEASE"
+                            echo "================================"
+
+                        else
+
+                            echo ""
+                            echo "================================"
+                            echo "ROLLBACK FAILED"
+                            echo ""
+                            echo "Manual intervention required."
+                            echo "================================"
+                        fi
+
+
+                        # Important:
+                        # the current Jenkins build must remain FAILED
+                        # because the new release itself failed.
+
+                        exit 1
+                    '''
+                }
             }
         }
     }
@@ -480,7 +609,8 @@ pipeline {
             PIPELINE SUCCESS
 
             Release #${BUILD_NUMBER}
-            successfully built and deployed.
+            successfully built, deployed
+            and passed health checks.
 
             Images:
 
@@ -495,6 +625,7 @@ pipeline {
             """
         }
 
+
         failure {
             echo """
             ==========================================
@@ -502,12 +633,17 @@ pipeline {
 
             Build #${BUILD_NUMBER}
 
-            Check the failed Jenkins stage
-            and its logs for details.
+            The release failed.
+
+            If a previous successful release existed,
+            the pipeline attempted an automatic rollback.
+
+            Check the Jenkins logs for details.
 
             ==========================================
             """
         }
+
 
         always {
             echo "Pipeline finished."
