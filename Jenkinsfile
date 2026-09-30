@@ -2,7 +2,6 @@ pipeline {
     agent any
 
     options {
-        // Prevent two Jenkins builds from deploying at the same time
         disableConcurrentBuilds()
     }
 
@@ -143,16 +142,12 @@ pipeline {
             steps {
                 dir('frontend') {
 
-                    // Install exact dependencies from package-lock.json
                     sh 'npm ci'
 
-                    // Run tests once
                     sh 'CI=true npm test -- --no-watch --no-progress'
 
-                    // Production build
                     sh 'npm run build'
 
-                    // Check Angular build artifact
                     sh 'ls -la dist/frontend/browser'
                 }
             }
@@ -237,7 +232,7 @@ pipeline {
 
 
         // ========================================
-        // 7. Check Complete Docker Release
+        // 7. Check Complete Release
         // ========================================
 
         stage('Check Docker Images') {
@@ -277,12 +272,10 @@ pipeline {
                         credentialsId: 'gateway-p12',
                         variable: 'P12_FILE'
                     ),
-
                     file(
                         credentialsId: 'gateway-crt',
                         variable: 'CRT_FILE'
                     ),
-
                     file(
                         credentialsId: 'gateway-key',
                         variable: 'KEY_FILE'
@@ -415,80 +408,52 @@ pipeline {
 
                             echo "Attempt $i/$MAX_ATTEMPTS -> state=$STATE health=$HEALTH"
 
-                            # Container disappeared or crashed
                             if [ "$STATE" = "exited" ] || \
                                [ "$STATE" = "dead" ] || \
                                [ "$STATE" = "missing" ]; then
 
                                 echo "ERROR: $CONTAINER stopped unexpectedly."
-
                                 return 1
                             fi
 
-
-                            # Real Docker healthcheck succeeded
                             if [ "$HEALTH" = "healthy" ]; then
 
                                 echo "$CONTAINER is healthy."
-
                                 return 0
                             fi
 
-
-                            # Temporary fallback:
-                            # service has no Docker HEALTHCHECK yet,
-                            # but its main process is still running.
                             if [ "$HEALTH" = "no-healthcheck" ] && \
                                [ "$STATE" = "running" ]; then
 
                                 echo "$CONTAINER is running."
                                 echo "WARNING: no Docker healthcheck configured."
-
                                 return 0
                             fi
-
 
                             sleep $SLEEP_SECONDS
                         done
 
-
                         echo "ERROR: $CONTAINER did not become healthy within the timeout."
-
                         return 1
                     }
 
 
-                    # ==================================
                     # Databases
-                    # ==================================
-
                     check_container product-mongodb
                     check_container media-mongodb
                     check_container user-mongodb
 
-
-                    # ==================================
                     # Infrastructure
-                    # ==================================
-
                     check_container buy01-kafka
                     check_container buy01-discovery
 
-
-                    # ==================================
-                    # Backend Services
-                    # ==================================
-
+                    # Backend services
                     check_container buy01-user-service
                     check_container buy01-product-service
                     check_container buy01-media-service
                     check_container buy01-gateway
 
-
-                    # ==================================
                     # Frontend
-                    # ==================================
-
                     check_container buy01-frontend
 
 
@@ -530,7 +495,6 @@ pipeline {
             """
         }
 
-
         failure {
             echo """
             ==========================================
@@ -544,7 +508,6 @@ pipeline {
             ==========================================
             """
         }
-
 
         always {
             echo "Pipeline finished."
