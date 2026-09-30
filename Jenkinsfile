@@ -11,6 +11,10 @@ pipeline {
         githubPush()
     }
 
+    environment {
+        BRANCH_NAME = "${env.GIT_BRANCH ? env.GIT_BRANCH.replace('origin/', '') : 'main'}"
+    }
+
     stages {
 
         // ========================================
@@ -273,10 +277,7 @@ pipeline {
 
         stage('Prepare TLS Certificates') {
             when {
-                expression {
-                    def branch = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ''
-                    return branch.endsWith('/main') || branch == 'main' || branch == ''
-                }
+                branch 'main'
             }
             steps {
                 withCredentials([
@@ -331,10 +332,7 @@ pipeline {
 
         stage('Validate Compose') {
             when {
-                expression {
-                    def branch = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ''
-                    return branch.endsWith('/main') || branch == 'main' || branch == ''
-                }
+                branch 'main'
             }
             steps {
                 withCredentials([
@@ -365,10 +363,7 @@ pipeline {
 
         stage('Deploy') {
             when {
-                expression {
-                    def branch = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ''
-                    return branch.endsWith('/main') || branch == 'main' || branch == ''
-                }
+                branch 'main'
             }
             steps {
                 withCredentials([
@@ -403,10 +398,7 @@ pipeline {
 
         stage('Post-Deployment Health Check') {
             when {
-                expression {
-                    def branch = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ''
-                    return branch.endsWith('/main') || branch == 'main' || branch == ''
-                }
+                branch 'main'
             }
             steps {
                 withCredentials([
@@ -633,56 +625,41 @@ pipeline {
     post {
 
         success {
+            echo """
+            ==========================================
+            PIPELINE SUCCESS
+
+            Release #${BUILD_NUMBER}
+            successfully built, deployed
+            and passed health checks.
+
+            Images:
+
+            product-service:${BUILD_NUMBER}
+            user-service:${BUILD_NUMBER}
+            media-service:${BUILD_NUMBER}
+            gateway:${BUILD_NUMBER}
+            discovery:${BUILD_NUMBER}
+            frontend:${BUILD_NUMBER}
+
+            ==========================================
+            """
+
             script {
-                def branch = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ''
-                boolean isMain = branch.endsWith('/main') || branch == 'main' || branch == ''
+                try {
+                    mail to: 'ayoubzone01@gmail.com',
+                         subject: "✅ SUCCESS: Release #${BUILD_NUMBER} Deployed",
+                         body: """
+                         Hello Team,
 
-                if (isMain) {
-                    echo """
-                    ==========================================
-                    PIPELINE SUCCESS
+                         Release #${BUILD_NUMBER} was successfully built, tested, and deployed!
+                         All microservices and database containers passed health checks.
 
-                    Release #${BUILD_NUMBER}
-                    successfully built, deployed
-                    and passed health checks.
-
-                    Images:
-
-                    product-service:${BUILD_NUMBER}
-                    user-service:${BUILD_NUMBER}
-                    media-service:${BUILD_NUMBER}
-                    gateway:${BUILD_NUMBER}
-                    discovery:${BUILD_NUMBER}
-                    frontend:${BUILD_NUMBER}
-
-                    ==========================================
-                    """
-
-                    try {
-                        mail to: 'ayoubzone01@gmail.com',
-                             subject: "✅ SUCCESS: Release #${BUILD_NUMBER} Deployed",
-                             body: """
-                             Hello Team,
-
-                             Release #${BUILD_NUMBER} was successfully built, tested, and deployed!
-                             All microservices and database containers passed health checks.
-
-                             Regards,
-                             Jenkins CI/CD
-                             """
-                    } catch (Exception e) {
-                        echo "Warning: Email notification skipped (SMTP not configured): ${e.message}"
-                    }
-                } else {
-                    echo """
-                    ==========================================
-                    CI PIPELINE SUCCESS
-
-                    Branch: ${branch}
-                    Build #${BUILD_NUMBER} passed all tests and packaging.
-                    Deployment was skipped (main branch only).
-                    ==========================================
-                    """
+                         Regards,
+                         Jenkins CI/CD
+                         """
+                } catch (Exception e) {
+                    echo "Warning: Email notification skipped (SMTP not configured): ${e.message}"
                 }
             }
         }
