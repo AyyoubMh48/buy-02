@@ -2,3 +2,7 @@
 certs/gateway-keystore.p12
 certs/gateway-keystore.crt
 certs/gateway-keystore.key
+
+# Jenkins secrets and local configuration backups
+jenkins-secrets/
+/jenkins-lab/backups/

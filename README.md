@@ -1287,3 +1287,171 @@ Kafka
 Jenkins
 CI/CD
 ```
+
+## Jenkins secrets: first-time setup
+
+Run these commands from the repository root. Jenkins mounts
+`jenkins-lab/jenkins-secrets/` read-only at `/run/secrets`.
+
+### 1. Create the folder
+
+```bash
+mkdir -p jenkins-lab/jenkins-secrets
+chmod 700 jenkins-lab/jenkins-secrets
+```
+
+### 2. Create the three text secrets
+
+Use Bash prompts so passwords and tokens are not saved in shell history.
+These commands replace the corresponding files; use them when setting up or
+intentionally changing credentials.
+
+```bash
+(
+  umask 077
+  read -r -s -p 'Choose Jenkins admin password: ' jenkins_password
+  printf '\n'
+  printf '%s' "$jenkins_password" > jenkins-lab/jenkins-secrets/jenkins-admin-password
+
+  read -r -p 'GitHub username: ' github_username
+  printf '%s' "$github_username" > jenkins-lab/jenkins-secrets/github-username
+
+  read -r -s -p 'GitHub personal access token: ' github_token
+  printf '\n'
+  printf '%s' "$github_token" > jenkins-lab/jenkins-secrets/github-pat
+)
+```
+
+Enter nonempty values. The GitHub token must have permission to read the SCM
+repository configured in `jenkins-lab/jcasc/jenkins.yaml`.
+
+**These three files contain only the value.** Do not add `PASSWORD=`,
+`GITHUB_USERNAME=`, `GITHUB_PAT=`, surrounding quotes, or shell commands.
+JCasC reads the complete value, so an assignment prefix becomes part of the
+password or username and causes login or checkout failures.
+
+### 3. Add the environment file and certificates
+
+```bash
+cp .env.example jenkins-lab/jenkins-secrets/buy01-env
+chmod 600 jenkins-lab/jenkins-secrets/buy01-env
+```
+
+Edit `buy01-env` locally and replace every placeholder with your application
+configuration: MongoDB credentials, JWT configuration, Cloudinary credentials,
+and the PKCS12 keystore password. Unlike the three text secrets, **`buy01-env`
+must keep its `NAME=value` format**. The pipeline also sources it as a shell
+file, so use shell-compatible assignments and quote values containing spaces
+or special characters.
+
+Copy your existing matching certificate files into the folder, replacing the
+example source paths below:
+
+```bash
+cp /path/to/gateway-keystore.p12 jenkins-lab/jenkins-secrets/gateway-keystore.p12
+cp /path/to/gateway-keystore.crt jenkins-lab/jenkins-secrets/gateway-keystore.crt
+cp /path/to/gateway-keystore.key jenkins-lab/jenkins-secrets/gateway-keystore.key
+```
+
+The `.p12` must contain the gateway key under alias `gateway`, with the password
+specified by `SERVER_SSL_KEY_STORE_PASSWORD` in `buy01-env`. The `.crt` and
+`.key` are the matching PEM certificate and private key used by Nginx. Copy
+these files unchanged; do not add variable prefixes or base64-encode them.
+
+The completed folder must contain:
+
+```text
+jenkins-lab/jenkins-secrets/
+├── jenkins-admin-password
+├── github-username
+├── github-pat
+├── buy01-env
+├── gateway-keystore.p12
+├── gateway-keystore.crt
+└── gateway-keystore.key
+```
+
+JCasC creates these credentials automatically:
+
+| Credential ID | Type | Source file(s) |
+|---|---|---|
+| `github-mr-jenk` | Username/password | `github-username`, `github-pat` |
+| `buy01-env` | Secret file | `buy01-env` |
+| `gateway-p12` | Secret file | `gateway-keystore.p12` |
+| `gateway-crt` | Secret file | `gateway-keystore.crt` |
+| `gateway-key` | Secret file | `gateway-keystore.key` |
+
+### 4. Allow Jenkins to read the files
+
+On a standard Linux Docker installation, the Jenkins image runs as UID/GID
+`1000:1000`. Give that group read access without making secrets world-readable:
+
+```bash
+sudo chgrp -R 1000 jenkins-lab/jenkins-secrets
+chmod 750 jenkins-lab/jenkins-secrets
+chmod 640 jenkins-lab/jenkins-secrets/*
+```
+
+Rootless Docker or user namespace mappings can require different host ownership.
+If Jenkins cannot read the files, check its effective user and the mount before
+changing permissions; do not use `chmod 777`.
+
+`jenkins-secrets/` and `jenkins-lab/backups/` are already ignored by Git. Verify
+without displaying any secret values:
+
+```bash
+git check-ignore jenkins-lab/jenkins-secrets/github-pat
+```
+
+Never commit the secret folder or print its contents in build logs.
+
+### 5. Start Jenkins and run the pipeline
+
+```bash
+cd jenkins-lab
+docker compose config --quiet
+docker compose up -d --build
+docker compose ps
+```
+
+Open **http://localhost:8085**. Log in as **`admin`**, using the password you
+entered in step 2. The setup wizard is disabled because JCasC configures Jenkins.
+
+The **`first-pipeline`** job is created automatically from
+`https://github.com/AyyoubMh48/mr-jenk.git`, branch `main`, script `Jenkinsfile`,
+using credential `github-mr-jenk`. Open the job and select **Build Now**.
+
+Check secret readability and Docker connectivity without printing contents:
+
+```bash
+docker compose exec -T jenkins sh -c '
+  for name in jenkins-admin-password github-username github-pat buy01-env gateway-keystore.p12 gateway-keystore.crt gateway-keystore.key; do
+    test -r "/run/secrets/$name" && test -s "/run/secrets/$name" || exit 1
+  done
+  echo "All required secret files are readable and nonempty"
+'
+docker compose exec -T jenkins docker version
+```
+
+After changing secret values, restart Jenkins so JCasC imports them again:
+
+```bash
+docker compose restart jenkins
+```
+
+After changing the Dockerfile or Compose configuration, apply the change with:
+
+```bash
+docker compose up -d --build jenkins
+```
+
+Check startup markers:
+
+```bash
+docker compose logs --since 5m jenkins 2>&1 |
+  rg 'Jenkins is fully up and running|Failed ConfigurationAsCode|Failed to execute script'
+```
+
+The log filter requires `rg` (ripgrep). Do not run `docker compose down -v` or
+remove named volumes: they contain Jenkins history, Docker images, TLS
+certificates, and application data.
