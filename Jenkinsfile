@@ -631,18 +631,23 @@ pipeline {
             """
 
             // 2. Send email notification to team
-            mail to: 'ayoubzone01@gmail.com, asanass208@gmail.com',
-                 subject: "✅ SUCCESS: Release #${BUILD_NUMBER} Deployed",
-                 body: """
-                 Hello Team,
+            script {
+                try {
+                    mail to: 'ayoubzone01@gmail.com, asanass208@gmail.com',
+                         subject: "✅ SUCCESS: Release #${BUILD_NUMBER} Deployed",
+                         body: """
+                         Hello Team,
 
-                 Release #${BUILD_NUMBER} was successfully built, tested, and deployed!
-                 All microservices and database containers passed health checks.
+                         Release #${BUILD_NUMBER} was successfully built, tested, and deployed!
+                         All microservices and database containers passed health checks.
 
-                 
-                 Regards,
-                 Jenkins CI/CD
-                 """
+                         Regards,
+                         Jenkins CI/CD
+                         """
+                } catch (Exception e) {
+                    echo "Warning: Email notification skipped (SMTP not configured): ${e.message}"
+                }
+            }
         }
 
 
@@ -665,17 +670,23 @@ pipeline {
             """
 
             // 2. Send failure alert to team
-            mail to: 'ayoubzone01@gmail.com, asanass208@gmail.com',
-                 subject: "❌ FAILURE: Build #${BUILD_NUMBER}",
-                 body: """
-                 Attention Team,
+            script {
+                try {
+                    mail to: 'ayoubzone01@gmail.com, asanass208@gmail.com',
+                         subject: "❌ FAILURE: Build #${BUILD_NUMBER}",
+                         body: """
+                         Attention Team,
 
-                 Build #${BUILD_NUMBER} has FAILED.
-                 If a previous release was available, an automatic rollback was attempted.
+                         Build #${BUILD_NUMBER} has FAILED.
+                         If a previous release was available, an automatic rollback was attempted.
 
-                 Regards,
-                 Jenkins CI/CD
-                 """
+                         Regards,
+                         Jenkins CI/CD
+                         """
+                } catch (Exception e) {
+                    echo "Warning: Email notification skipped (SMTP not configured): ${e.message}"
+                }
+            }
         }
 
 
