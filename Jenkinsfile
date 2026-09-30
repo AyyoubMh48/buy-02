@@ -5,6 +5,11 @@ pipeline {
         // Prevent two deployments from running at the same time
         disableConcurrentBuilds()
     }
+    
+    triggers {
+        // Triggers the build instantly when GitHub sends a webhook push event
+        githubPush()
+    }
 
     stages {
 
@@ -604,6 +609,7 @@ pipeline {
     post {
 
         success {
+            // 1. Keep your formatted console log
             echo """
             ==========================================
             PIPELINE SUCCESS
@@ -623,10 +629,27 @@ pipeline {
 
             ==========================================
             """
+
+            // 2. Send email notification to team
+            mail to: 'ayoubzone01@gmail.com, asanass208@gmail.com',
+                 subject: "✅ SUCCESS: Release #${BUILD_NUMBER} Deployed",
+                 body: """
+                 Hello Team,
+
+                 Release #${BUILD_NUMBER} was successfully built, tested, and deployed!
+                 All microservices and database containers passed health checks.
+
+                 Job URL: ${env.BUILD_URL}
+                 Git Commit: ${env.GIT_COMMIT}
+
+                 Regards,
+                 Jenkins CI/CD
+                 """
         }
 
 
         failure {
+            // 1. Keep your formatted console log
             echo """
             ==========================================
             PIPELINE FAILED
@@ -642,6 +665,22 @@ pipeline {
 
             ==========================================
             """
+
+            // 2. Send failure alert to team
+            mail to: 'ayoubzone01@gmail.com, asanass208@gmail.com',
+                 subject: "❌ FAILURE: Build #${BUILD_NUMBER}",
+                 body: """
+                 Attention Team,
+
+                 Build #${BUILD_NUMBER} has FAILED.
+                 If a previous release was available, an automatic rollback was attempted.
+
+                 Please check the Jenkins console log:
+                 ${env.BUILD_URL}console
+
+                 Regards,
+                 Jenkins CI/CD
+                 """
         }
 
 

@@ -35,7 +35,11 @@ jenkins:
 
   authorizationStrategy:
     loggedInUsersCanDoAnything:
-      allowAnonymousRead: false
+      allowAnonymousRead: true
+
+    crumbIssuer:
+    standard:
+      excludeClientIPFromCrumb: true
 
 
 
@@ -149,6 +153,10 @@ jobs:
       pipelineJob('first-pipeline') {
 
           description('Buy01 CI/CD Pipeline - managed by JCasC')
+
+          triggers {
+              githubPush()
+          }
 
           definition {
 
