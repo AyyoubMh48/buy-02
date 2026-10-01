@@ -1,5 +1,4 @@
-# Text secrets use native JCasC lookup: ${filename} -> /run/secrets/filename.
-# Secret files use readFileBase64 so their exact bytes survive import.
+# Secret values are exported by docker-entrypoint.sh before JCasC starts.
 # The plain-credentials plugin supplies the file/secretBytes credential schema.
 jenkins:
 
@@ -26,7 +25,7 @@ jenkins:
 
       users:
         - id: "admin"
-          password: "${jenkins-admin-password}"
+          password: "${JENKINS_ADMIN_PASSWORD}"
 
 
   # ==========================================
@@ -37,9 +36,8 @@ jenkins:
     loggedInUsersCanDoAnything:
       allowAnonymousRead: true
 
-    crumbIssuer:
-    standard:
-      excludeClientIPFromCrumb: true
+  crumbIssuer:
+    standard: {}
 
 
 
@@ -68,9 +66,9 @@ credentials:
 
               description: "GitHub credentials for mr-jenk"
 
-              username: "${github-username}"
+              username: "${GITHUB_USERNAME}"
 
-              password: "${github-pat}"
+              password: "${GITHUB_PAT}"
 
 
           # ==================================
@@ -87,7 +85,7 @@ credentials:
 
               fileName: ".env"
 
-              secretBytes: "${readFileBase64:/run/secrets/buy01-env}"
+              secretBytes: "${BUY01_ENV_B64}"
 
 
           # ==================================
@@ -104,7 +102,7 @@ credentials:
 
               fileName: "gateway-keystore.p12"
 
-              secretBytes: "${readFileBase64:/run/secrets/gateway-keystore.p12}"
+              secretBytes: "${GATEWAY_P12_B64}"
 
 
           # ==================================
@@ -121,7 +119,7 @@ credentials:
 
               fileName: "gateway-keystore.crt"
 
-              secretBytes: "${readFileBase64:/run/secrets/gateway-keystore.crt}"
+              secretBytes: "${GATEWAY_CRT_B64}"
 
 
           # ==================================
@@ -138,7 +136,7 @@ credentials:
 
               fileName: "gateway-keystore.key"
 
-              secretBytes: "${readFileBase64:/run/secrets/gateway-keystore.key}"
+              secretBytes: "${GATEWAY_KEY_B64}"
 
 
 

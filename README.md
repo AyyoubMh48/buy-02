@@ -143,7 +143,8 @@ openssl pkcs12 -export \
 # (Note: If you already have existing certs: cp certs/gateway-keystore.* jenkins-lab/jenkins-secrets/)
 ```
 
-Set secure permissions so Jenkins (UID `1000`) can read them:
+Set secure permissions for the mounted secret files. The Jenkins entrypoint reads
+them as root, exports the required values, and then starts Jenkins as UID `1000`:
 
 ```bash
 chmod 750 jenkins-lab/jenkins-secrets
@@ -175,7 +176,7 @@ In a separate terminal, run ngrok with your domain:
 ```bash
 ./ngrok http 8085 --url https://vowel-audio-diner.ngrok-free.dev
 # or from inside jenkins-lab/:
-# ./jenkins-lab/ngrok http 8085 --url https://vowel-audio-diner.ngrok-free.dev
+# ./ngrok http 8085 --url https://vowel-audio-diner.ngrok-free.dev
 ```
 
 Configure the Webhook in GitHub:

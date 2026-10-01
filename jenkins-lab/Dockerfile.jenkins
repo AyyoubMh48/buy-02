@@ -30,6 +30,9 @@ RUN apt-get update && \
 
 COPY --from=node /usr/local/ /usr/local/
 
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod 0755 /usr/local/bin/docker-entrypoint.sh
+
 # Fail the image build if a required pipeline tool is missing.
 RUN java -version && node --version && npm --version && \
     docker --version && docker compose version
@@ -51,4 +54,5 @@ RUN jenkins-plugin-cli --plugins \
     email-ext
 
 
-USER jenkins
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+USER root
