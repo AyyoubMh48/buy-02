@@ -1,0 +1,4 @@
+# Compatibility entrypoint: infrastructure is defined only in jenkins-lab.
+# Use the canonical file directly for startup (see README).
+include:
+  - ../jenkins-lab/compose.yml

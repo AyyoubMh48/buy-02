@@ -6,3 +6,11 @@ certs/gateway-keystore.key
 # Jenkins secrets and local configuration backups
 jenkins-secrets/
 /jenkins-lab/backups/
+
+/jenkins-lab/.env
+/sonar-lab/.env
+**/__pycache__/
+
+# Maven download failure markers and accidental local caches
+**/*.lastUpdated
+**/.m2/

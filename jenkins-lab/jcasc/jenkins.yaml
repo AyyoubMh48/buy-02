@@ -1,189 +1,233 @@
 # Secret values are exported by docker-entrypoint.sh before JCasC starts.
 # The plain-credentials plugin supplies the file/secretBytes credential schema.
 jenkins:
+    systemMessage: |
+        Buy01 Jenkins
 
-  systemMessage: |
-    Buy01 Jenkins
+        This Jenkins controller is configured automatically
+        using Jenkins Configuration as Code (JCasC).
 
-    This Jenkins controller is configured automatically
-    using Jenkins Configuration as Code (JCasC).
+    numExecutors: 1
 
-  numExecutors: 1
+    mode: NORMAL
 
-  mode: NORMAL
+    scmCheckoutRetryCount: 2
 
-  scmCheckoutRetryCount: 2
+    # ==========================================
+    # Jenkins Authentication
+    # ==========================================
 
+    securityRealm:
+        local:
+            allowsSignup: false
 
-  # ==========================================
-  # Jenkins Authentication
-  # ==========================================
+            users:
+                - id: "admin"
+                  password: "${JENKINS_ADMIN_PASSWORD}"
 
-  securityRealm:
-    local:
-      allowsSignup: false
+    # ==========================================
+    # Authorization
+    # ==========================================
 
-      users:
-        - id: "admin"
-          password: "${JENKINS_ADMIN_PASSWORD}"
+    authorizationStrategy:
+        loggedInUsersCanDoAnything:
+            allowAnonymousRead: true
 
-
-  # ==========================================
-  # Authorization
-  # ==========================================
-
-  authorizationStrategy:
-    loggedInUsersCanDoAnything:
-      allowAnonymousRead: true
-
-  crumbIssuer:
-    standard: {}
-
-
+    crumbIssuer:
+        standard: {}
 
 # ==========================================
 # Jenkins Credentials
 # ==========================================
 
 credentials:
+    system:
+        domainCredentials:
+            - credentials:
+                  # BEGIN SONAR CREDENTIALS
+                  # ==================================
+                  # SonarQube - Product Service
+                  # ==================================
+                  - string:
+                        scope: GLOBAL
+                        id: "sonar-product-token"
+                        description: "SonarQube Product Service token"
+                        secret: "${SONAR_PRODUCT_TOKEN}"
 
-  system:
+                  # ==================================
+                  # SonarQube - User Service
+                  # ==================================
+                  - string:
+                        scope: GLOBAL
+                        id: "sonar-user-token"
+                        description: "SonarQube User Service token"
+                        secret: "${SONAR_USER_TOKEN}"
 
-    domainCredentials:
+                  # ==================================
+                  # SonarQube - Media Service
+                  # ==================================
+                  - string:
+                        scope: GLOBAL
+                        id: "sonar-media-token"
+                        description: "SonarQube Media Service token"
+                        secret: "${SONAR_MEDIA_TOKEN}"
 
-      - credentials:
+                  # ==================================
+                  # SonarQube - API Gateway
+                  # ==================================
+                  - string:
+                        scope: GLOBAL
+                        id: "sonar-gateway-token"
+                        description: "SonarQube Gateway token"
+                        secret: "${SONAR_GATEWAY_TOKEN}"
 
+                  # ==================================
+                  # SonarQube - Discovery Service
+                  # ==================================
+                  - string:
+                        scope: GLOBAL
+                        id: "sonar-discovery-token"
+                        description: "SonarQube Discovery Service token"
+                        secret: "${SONAR_DISCOVERY_TOKEN}"
 
-          # ==================================
-          # GitHub
-          # ==================================
+                  # ==================================
+                  # SonarQube - Frontend
+                  # ==================================
+                  - string:
+                        scope: GLOBAL
+                        id: "sonar-frontend-token"
+                        description: "SonarQube Frontend token"
+                        secret: "${SONAR_FRONTEND_TOKEN}"
 
-          - usernamePassword:
+                  # END SONAR CREDENTIALS
+                  # ==================================
+                  # GitHub
+                  # ==================================
 
-              scope: GLOBAL
+                  - usernamePassword:
+                        scope: GLOBAL
 
-              id: "github-mr-jenk"
+                        id: "github-mr-jenk"
 
-              description: "GitHub credentials for mr-jenk"
+                        description: "GitHub credentials for mr-jenk"
 
-              username: "${GITHUB_USERNAME}"
+                        username: "${GITHUB_USERNAME}"
 
-              password: "${GITHUB_PAT}"
+                        password: "${GITHUB_PAT}"
 
+                  # ==================================
+                  # Buy01 .env
+                  # ==================================
 
-          # ==================================
-          # Buy01 .env
-          # ==================================
+                  - file:
+                        scope: GLOBAL
 
-          - file:
+                        id: "buy01-env"
 
-              scope: GLOBAL
+                        description: "Buy01 application environment"
 
-              id: "buy01-env"
+                        fileName: ".env"
 
-              description: "Buy01 application environment"
+                        secretBytes: "${BUY01_ENV_B64}"
 
-              fileName: ".env"
+                  # ==================================
+                  # Gateway PKCS12
+                  # ==================================
 
-              secretBytes: "${BUY01_ENV_B64}"
+                  - file:
+                        scope: GLOBAL
 
+                        id: "gateway-p12"
 
-          # ==================================
-          # Gateway PKCS12
-          # ==================================
+                        description: "Gateway PKCS12 keystore"
 
-          - file:
+                        fileName: "gateway-keystore.p12"
 
-              scope: GLOBAL
+                        secretBytes: "${GATEWAY_P12_B64}"
 
-              id: "gateway-p12"
+                  # ==================================
+                  # Gateway certificate
+                  # ==================================
 
-              description: "Gateway PKCS12 keystore"
+                  - file:
+                        scope: GLOBAL
 
-              fileName: "gateway-keystore.p12"
+                        id: "gateway-crt"
 
-              secretBytes: "${GATEWAY_P12_B64}"
+                        description: "Gateway public certificate"
 
+                        fileName: "gateway-keystore.crt"
 
-          # ==================================
-          # Gateway certificate
-          # ==================================
+                        secretBytes: "${GATEWAY_CRT_B64}"
 
-          - file:
+                  # ==================================
+                  # Gateway private key
+                  # ==================================
 
-              scope: GLOBAL
+                  - file:
+                        scope: GLOBAL
 
-              id: "gateway-crt"
+                        id: "gateway-key"
 
-              description: "Gateway public certificate"
+                        description: "Gateway private key"
 
-              fileName: "gateway-keystore.crt"
+                        fileName: "gateway-keystore.key"
 
-              secretBytes: "${GATEWAY_CRT_B64}"
-
-
-          # ==================================
-          # Gateway private key
-          # ==================================
-
-          - file:
-
-              scope: GLOBAL
-
-              id: "gateway-key"
-
-              description: "Gateway private key"
-
-              fileName: "gateway-keystore.key"
-
-              secretBytes: "${GATEWAY_KEY_B64}"
-
-
+                        secretBytes: "${GATEWAY_KEY_B64}"
 
 # ==========================================
 # Jenkins Job
 # ==========================================
 
 jobs:
+    - script: |
 
-  - script: |
+          pipelineJob('first-pipeline') {
 
-      pipelineJob('first-pipeline') {
+              description('Buy01 CI/CD Pipeline - managed by JCasC')
 
-          description('Buy01 CI/CD Pipeline - managed by JCasC')
+              triggers {
+                  githubPush()
+              }
 
-          triggers {
-              githubPush()
-          }
+              definition {
 
-          definition {
+                  cpsScm {
 
-              cpsScm {
+                      scm {
 
-                  scm {
+                          git {
 
-                      git {
+                              remote {
 
-                          remote {
+                                  url('https://github.com/anass-asbai/safe-zone.git')
 
-                              url('https://github.com/AyyoubMh48/mr-jenk.git')
+                                  credentials('github-mr-jenk')
 
-                              credentials('github-mr-jenk')
+                                 }
 
-                             }
+                              branch('*/main')
 
-                          branch('*/main')
+                          }
 
                       }
 
+                      scriptPath('Jenkinsfile')
+
+                      lightweight()
+
                   }
-
-                  scriptPath('Jenkinsfile')
-
-                  lightweight()
 
               }
 
-          }
+            }
 
-        }
+# BEGIN SONAR SERVER
+# sonar:2.19.0 SonarGlobalConfiguration / SonarInstallation data-bound fields.
+unclassified:
+    sonarglobalconfiguration:
+        buildWrapperEnabled: true
+        installations:
+            - name: "SonarQube"
+              serverUrl: "http://sonarqube:9000"
+              credentialsId: "sonar-product-token"
