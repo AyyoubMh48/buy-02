@@ -77,6 +77,15 @@ pipeline {
             }
         }
 
+        stage('Frontend Tests') {
+            steps {
+                dir('frontend') {
+                    sh 'npm ci'
+                    sh 'CI=true npm test -- --watch=false --coverage --coverage-reporters=lcov'
+                }
+            }
+        }
+
         // ========================================
         // 3. Package Backend + JaCoCo XML report
         // ========================================
@@ -132,11 +141,9 @@ pipeline {
         // ========================================
         // 5. Frontend CI
         // ========================================
-        stage('Frontend CI') {
+        stage('Package Frontend') {
             steps {
                 dir('frontend') {
-                    sh 'npm ci'
-                    sh 'CI=true npm test -- --watch=false --coverage --coverage-reporters=lcov'
                     sh 'npm run build'
                     sh 'ls -la dist/frontend/browser'
                 }
@@ -146,6 +153,16 @@ pipeline {
         // ========================================
         // 6. SonarQube Analysis and Quality Gates
         // ========================================
+        stage('Coverage') {
+            steps {
+                sh '''
+                    for component in product-service user-service media-service gateway discovery; do
+                        test -s "$component/target/site/jacoco/jacoco.xml"
+                    done
+                    test -s frontend/coverage/frontend/lcov.info
+                '''
+            }
+        }
         stage('SonarQube analyses and Quality Gates') {
             steps {
                 script {
@@ -163,10 +180,14 @@ pipeline {
                     // Consume each CE task before submitting the next analysis.
                     for (component in components) {
                         def credential = "sonar-${component[1]}-token"
+                        def projectKey = env["SONAR_${component[1].toUpperCase()}_PROJECT_KEY"]
+                        if (!projectKey?.trim()) {
+                            error("Missing exact SonarQube project key for ${component[1]}; run sonar-init and restart Jenkins")
+                        }
                         dir(component[0]) {
                             withSonarQubeEnv(installationName: 'SonarQube', credentialsId: credential) {
                                 withCredentials([string(credentialsId: credential, variable: 'SONAR_TOKEN')]) {
-                                    withEnv(["SONAR_PROJECT_KEY=${component[2]}"]) {
+                                    withEnv(["SONAR_PROJECT_KEY=${projectKey}"]) {
                                         if (component[0] == 'frontend') {
                                             sh '''
                                                 set +x
@@ -186,9 +207,18 @@ pipeline {
                                 }
                             }
                             timeout(time: 10, unit: 'MINUTES') {
-                                def gate = waitForQualityGate(credentialsId: credential, abortPipeline: true)
-                                if (gate.status != 'OK') {
-                                    error("Quality Gate failed for ${component[2]}: ${gate.status}")
+                                try {
+                                    def gate = waitForQualityGate(credentialsId: credential, abortPipeline: true)
+                                    if (gate.status != 'OK') {
+                                        error("Quality Gate failed for ${projectKey}: ${gate.status}")
+                                    }
+                                } catch (Exception failure) {
+                                    withCredentials([string(credentialsId: credential, variable: 'SONAR_TOKEN')]) {
+                                        withEnv(["SONAR_PROJECT_KEY=${projectKey}", 'SONAR_HOST_URL=http://sonarqube:9000']) {
+                                            sh(script: 'set +x; node ../jenkins-lab/sonar-init/quality-gate.js', returnStatus: true)
+                                        }
+                                    }
+                                    throw failure
                                 }
                             }
                         }

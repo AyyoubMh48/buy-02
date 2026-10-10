@@ -18,14 +18,32 @@ for component in product user media gateway discovery frontend; do
         sonar_ready=false
         continue
     fi
+    value="$(tr -d '\r\n' < "$file")"
+    if [ -z "$value" ]; then
+        echo "Empty SonarQube credential for $component; run sonar-init" >&2
+        sonar_ready=false
+        continue
+    fi
     variable="SONAR_${component^^}_TOKEN"
-    export "$variable=$(cat "$file")"
+    export "$variable=$value"
+    key_file="/run/secrets/sonar-${component}-project-key"
+    if [ ! -s "$key_file" ]; then
+        echo "Missing $key_file: run sonar-init to resolve the exact project key" >&2
+        sonar_ready=false
+        continue
+    fi
+    project_key="$(tr -d '\r\n' < "$key_file")"
+    if [[ ! "$project_key" =~ ^[a-zA-Z0-9_.:-]+$ ]]; then
+        echo "Invalid project key file for $component" >&2
+        exit 1
+    fi
+    export "SONAR_${component^^}_PROJECT_KEY=$project_key"
 done
 
 if [ "$sonar_ready" = false ]; then
     # Omit optional credentials entirely; never substitute empty/fake secrets.
     # JCasC retains credentials already stored in Jenkins' persistent home.
-    sed '/# BEGIN SONAR CREDENTIALS/,/# END SONAR CREDENTIALS/d; /# BEGIN SONAR SERVER/,$d' \
+    sed '/# BEGIN SONAR CREDENTIALS/,/# END SONAR CREDENTIALS/d; /# BEGIN SONAR PROJECT KEYS/,/# END SONAR PROJECT KEYS/d; /# BEGIN SONAR SERVER/,$d' \
         /casc/jenkins.yaml > /tmp/jenkins-base.yaml
     chmod 600 /tmp/jenkins-base.yaml
     chown jenkins:jenkins /tmp/jenkins-base.yaml

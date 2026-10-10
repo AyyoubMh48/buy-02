@@ -7,6 +7,24 @@ jenkins:
         This Jenkins controller is configured automatically
         using Jenkins Configuration as Code (JCasC).
 
+    # BEGIN SONAR PROJECT KEYS
+    globalNodeProperties:
+        - envVars:
+            env:
+                - key: SONAR_PRODUCT_PROJECT_KEY
+                  value: "${SONAR_PRODUCT_PROJECT_KEY}"
+                - key: SONAR_USER_PROJECT_KEY
+                  value: "${SONAR_USER_PROJECT_KEY}"
+                - key: SONAR_MEDIA_PROJECT_KEY
+                  value: "${SONAR_MEDIA_PROJECT_KEY}"
+                - key: SONAR_GATEWAY_PROJECT_KEY
+                  value: "${SONAR_GATEWAY_PROJECT_KEY}"
+                - key: SONAR_DISCOVERY_PROJECT_KEY
+                  value: "${SONAR_DISCOVERY_PROJECT_KEY}"
+                - key: SONAR_FRONTEND_PROJECT_KEY
+                  value: "${SONAR_FRONTEND_PROJECT_KEY}"
+    # END SONAR PROJECT KEYS
+
     numExecutors: 1
 
     mode: NORMAL

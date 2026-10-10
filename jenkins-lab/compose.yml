@@ -139,6 +139,10 @@ services:
       - jenkins-network
 
   sonarqube:
+    # Elasticsearch resolves the local hostname before initializing logging.
+    hostname: sonarqube
+    extra_hosts:
+      - "sonarqube:127.0.0.1"
     image: sonarqube@sha256:c0f1160bccfa435db4168c2d7df69af3c3ea7bfeb87395613014048fb33a68c1
     restart: unless-stopped
     depends_on:
