@@ -180,7 +180,7 @@ pipeline {
                     // Consume each CE task before submitting the next analysis.
                     for (component in components) {
                         def credential = "sonar-${component[1]}-token"
-                        def projectKey = env["SONAR_${component[1].toUpperCase()}_PROJECT_KEY"]
+                        def projectKey = env.getProperty("SONAR_${component[1].toUpperCase()}_PROJECT_KEY")
                         if (!projectKey?.trim()) {
                             error("Missing exact SonarQube project key for ${component[1]}; run sonar-init and restart Jenkins")
                         }
