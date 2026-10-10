@@ -218,7 +218,7 @@ jobs:
 
                               remote {
 
-                                  url('https://github.com/anass-asbai/safe-zone.git')
+                                  url('https://github.com/anasbaip/safe-zone.git')
 
                                   credentials('github-mr-jenk')
 
