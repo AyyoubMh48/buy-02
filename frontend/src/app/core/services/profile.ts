@@ -13,7 +13,7 @@ export interface UpdateProfileRequest {
 export class ProfileService {
   private readonly API_URL = `${API_BASE_URL}/me`;
 
-  constructor(private http: HttpClient) {}
+  constructor(private readonly http: HttpClient) {}
 
   getProfile(): Observable<User> {
     return this.http.get<User>(this.API_URL);

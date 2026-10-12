@@ -49,7 +49,7 @@ public class MediaService {
                     .size(file.getSize())
                     .storagePath(secureUrl) // Stores Cloudinary HTTPS CDN URL
                     .uploaderId(uploaderId)
-                    .uploadedAt(LocalDateTime.now())
+                    .uploadedAt(LocalDateTime.now(java.time.ZoneOffset.UTC))
                     .build();
 
             MediaMetaData saved = repository.save(metadata);

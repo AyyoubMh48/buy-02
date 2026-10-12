@@ -206,6 +206,7 @@ jobs:
 
               triggers {
                   githubPush()
+                  cron('H H(1-4) * * *')
               }
 
               definition {

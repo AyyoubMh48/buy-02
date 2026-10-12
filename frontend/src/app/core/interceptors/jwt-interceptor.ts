@@ -12,7 +12,8 @@ export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
     req.method === 'GET' &&
     /^https:\/\/localhost:8443\/products(?:\/(?!myProducts(?:[/?]|$))[^/?]+)?(?:\?.*)?$/.test(req.url);
 
-  if (token && !isPublicProductRead) {
+  const isCsrfRequest = req.method === 'GET' && req.url.endsWith('/csrf');
+  if (token && !isPublicProductRead && !isCsrfRequest) {
     req = req.clone({
       setHeaders: {
         Authorization: `Bearer ${token}`

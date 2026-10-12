@@ -30,8 +30,6 @@ import org.jenkinsci.plugins.plaincredentials.StringCredentials
 import hudson.slaves.EnvironmentVariablesNodeProperty
 import hudson.plugins.sonar.SonarGlobalConfiguration
 import groovy.json.JsonSlurper
-import java.nio.file.Files
-import java.nio.file.Path
 def j=Jenkins.instance
 boolean failed=false
 def props=j.globalNodeProperties.get(EnvironmentVariablesNodeProperty.class)?.envVars ?: [:]
@@ -56,19 +54,19 @@ def request={ endpoint, token ->
 ['product','user','media','gateway','discovery','frontend'].each { c ->
     def credential=cs.find{it.id=='sonar-'+c+'-token'}
     def key=props['SONAR_'+c.toUpperCase()+'_PROJECT_KEY']
-    def file=Path.of('/run/secrets/sonar-'+c+'-token')
-    if(!credential || !key || !Files.isRegularFile(file)) {
-        println('FAIL '+c+': missing loaded credential, exact project key, or local token'); failed=true
+    def expected=System.getenv('SONAR_'+c.toUpperCase()+'_TOKEN')
+    if(!credential || !key || !expected) {
+        println('FAIL '+c+': missing loaded credential, exact project key, or startup token'); failed=true
     } else {
         def token=credential.secret.plainText
-        if(token!=Files.readString(file).trim()) {
-            println('FAIL '+c+': Jenkins credential differs from local file'); failed=true
+        if(token!=expected) {
+            println('FAIL '+c+': Jenkins credential differs from startup secret'); failed=true
         } else {
             def auth=request('authentication/validate',token)
             def permission=request('analysis_cache/get?project='+URLEncoder.encode(key,'UTF-8'),token)
             boolean authorized=permission[0]==200 || (permission[0]==404 && permission[1].errors?.any{it.msg=='No cache for given branch or pull request'})
             if(auth[0]==200 && auth[1].valid && authorized) {
-                println('PASS '+c+': '+key+'; credential matches and Execute Analysis verified')
+                println('PASS '+c+': '+key+'; credential matches startup secret and Execute Analysis verified')
             } else {
                 println('FAIL '+c+': authentication HTTP '+auth[0]+'; permission HTTP '+permission[0]); failed=true
             }

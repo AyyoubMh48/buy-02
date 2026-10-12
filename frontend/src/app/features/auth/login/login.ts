@@ -13,14 +13,14 @@ import { AuthService } from '../../../core/services/auth';
 })
 export class Login {
   loginForm: FormGroup;
-  loading = signal<boolean>(false);
-  errorMessage = signal<string>('');
-  showPassword = signal<boolean>(false);
+  readonly loading = signal<boolean>(false);
+  readonly errorMessage = signal<string>('');
+  readonly showPassword = signal<boolean>(false);
 
   constructor(
-    private fb: FormBuilder, 
-    private auth: AuthService, 
-    private router: Router
+    private readonly fb: FormBuilder,
+    private readonly auth: AuthService,
+    private readonly router: Router
   ) {
     this.loginForm = this.fb.group({
       email: ['', [Validators.required, Validators.email]],

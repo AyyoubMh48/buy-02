@@ -11,7 +11,7 @@ import { AuthService } from '../../core/services/auth';
   styleUrl: './navbar.css',
 })
 export class Navbar {
-  mobileMenuOpen = signal(false);
+  readonly mobileMenuOpen = signal(false);
 
   constructor(public auth: AuthService) {}
 

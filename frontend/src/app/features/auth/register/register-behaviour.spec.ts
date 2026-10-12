@@ -69,27 +69,15 @@ describe('Register behaviour', () => {
     expect(component.errorMessage()).toBe('plain failure');
   });
 
-  it('maps a 409 status to a friendly message', () => {
+  it.each([
+    [409, 'different email'],
+    [400, 'check your information'],
+    [500, 'try again later'],
+  ])('maps status %i to a friendly message', (status, message) => {
     const auth = TestBed.inject(AuthService);
-    vi.spyOn(auth, 'register').mockReturnValue(throwError(() => ({ status: 409, error: {} })));
+    vi.spyOn(auth, 'register').mockReturnValue(throwError(() => ({ status, error: {} })));
     fill();
     component.onSubmit();
-    expect(component.errorMessage()).toContain('different email');
-  });
-
-  it('maps a 400 status to a friendly message', () => {
-    const auth = TestBed.inject(AuthService);
-    vi.spyOn(auth, 'register').mockReturnValue(throwError(() => ({ status: 400, error: {} })));
-    fill();
-    component.onSubmit();
-    expect(component.errorMessage()).toContain('check your information');
-  });
-
-  it('maps an unknown status to a generic message', () => {
-    const auth = TestBed.inject(AuthService);
-    vi.spyOn(auth, 'register').mockReturnValue(throwError(() => ({ status: 500, error: {} })));
-    fill();
-    component.onSubmit();
-    expect(component.errorMessage()).toContain('try again later');
+    expect(component.errorMessage()).toContain(message);
   });
 });

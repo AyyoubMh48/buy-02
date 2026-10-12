@@ -17,18 +17,18 @@ export class UpdateProfileDialog implements OnInit {
   @Output() closed = new EventEmitter<void>();
   @Output() saved = new EventEmitter<User>();
 
-  saving = signal(false);
-  uploadingAvatar = signal(false);
-  errorMessage = signal('');
-  avatarPreview = signal('');
-  avatarMediaId = signal('');
+  readonly saving = signal(false);
+  readonly uploadingAvatar = signal(false);
+  readonly errorMessage = signal('');
+  readonly avatarPreview = signal('');
+  readonly avatarMediaId = signal('');
 
   profileForm: FormGroup;
 
   constructor(
-    private formBuilder: FormBuilder,
-    private profileService: ProfileService,
-    private mediaService: MediaService
+    private readonly formBuilder: FormBuilder,
+    private readonly profileService: ProfileService,
+    private readonly mediaService: MediaService
   ) {
     this.profileForm = this.formBuilder.group({
       username: ['', [Validators.required, Validators.minLength(2)]],

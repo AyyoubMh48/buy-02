@@ -1,0 +1,81 @@
+name: Code quality
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: quality-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  quality:
+    name: Tests and SonarQube gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SONAR_HOST_URL: http://localhost:19000
+      JWT_SECRET: ci-only-test-signing-key-at-least-32-bytes
+      CLOUDINARY_CLOUD_NAME: ci-fixture
+      CLOUDINARY_API_KEY: ci-fixture
+      CLOUDINARY_API_SECRET: ci-fixture
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24.20.0'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Frontend tests and coverage
+        working-directory: frontend
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: 'true'
+        run: |
+          npm ci --no-audit --no-fund
+          CI=true npm run test:coverage
+          npm run build
+      - name: Backend tests and coverage
+        run: |
+          for service in product-service user-service media-service gateway discovery; do
+            (cd "$service" && bash ./mvnw -B clean verify)
+            test -s "$service/target/site/jacoco/jacoco.xml"
+          done
+      - name: Start isolated Docker SonarQube
+        run: |
+          sudo sysctl -w vm.max_map_count=524288
+          password=$(openssl rand -hex 24)
+          echo "::add-mask::$password"
+          echo "SONAR_CI_DB_PASSWORD=$password" >> "$GITHUB_ENV"
+          SONAR_CI_DB_PASSWORD="$password" docker compose -p buy01-quality -f .ci/compose.sonar.yml up -d --wait --wait-timeout 900
+      - name: Install pinned SonarScanner CLI
+        run: |
+          curl -fsSLo "$RUNNER_TEMP/scanner.zip" https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-7.2.0.5079.zip
+          unzip -q "$RUNNER_TEMP/scanner.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/sonar-scanner-7.2.0.5079/bin" >> "$GITHUB_PATH"
+      - name: Scan every service and enforce quality gates
+        run: python3 .ci/sonar_ci.py --initialize
+      - name: Preserve coverage and quality reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: quality-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 30
+          path: |
+            reports/quality/**
+            frontend/coverage/frontend/**
+            **/target/site/jacoco/**
+            **/target/surefire-reports/*.xml
+      - name: Stop isolated SonarQube
+        if: always() && env.SONAR_CI_DB_PASSWORD != ''
+        run: docker compose -p buy01-quality -f .ci/compose.sonar.yml down -v

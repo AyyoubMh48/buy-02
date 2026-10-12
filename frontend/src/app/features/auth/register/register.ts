@@ -14,17 +14,17 @@ import { MediaService } from '../../../core/services/media';
 })
 export class Register {
   registerForm: FormGroup;
-  loading = signal<boolean>(false);
-  uploadingAvatar = signal<boolean>(false);
-  errorMessage = signal<string>('');
-  showPassword = signal<boolean>(false);
-  avatarPreview = signal<string>('');
+  readonly loading = signal<boolean>(false);
+  readonly uploadingAvatar = signal<boolean>(false);
+  readonly errorMessage = signal<string>('');
+  readonly showPassword = signal<boolean>(false);
+  readonly avatarPreview = signal<string>('');
 
   constructor(
-    private fb: FormBuilder,
-    private auth: AuthService,
-    private mediaService: MediaService,
-    private router: Router
+    private readonly fb: FormBuilder,
+    private readonly auth: AuthService,
+    private readonly mediaService: MediaService,
+    private readonly router: Router
   ) {
     this.registerForm = this.fb.group({
       fullName: [
@@ -100,45 +100,31 @@ export class Register {
         this.router.navigate([dest]);
       },
       error: (err) => {
-        let msg = '';
-        if (err.error?.fields && typeof err.error.fields === 'object') {
-          const fieldMap = err.error.fields as Record<string, string>;
-          const fieldErrors: string[] = [];
-          if (fieldMap['fullName']) {
-            fieldErrors.push(fieldMap['fullName']);
-          }
-          for (const [key, val] of Object.entries(fieldMap)) {
-            if (key !== 'fullName' && key !== 'username' && val) {
-              fieldErrors.push(val);
-            }
-          }
-          if (fieldErrors.length === 0 && fieldMap['username']) {
-            fieldErrors.push(fieldMap['username']);
-          }
-          msg = Array.from(new Set(fieldErrors)).join('. ');
-        }
-
-        if (!msg && err.error?.message) {
-          msg = err.error.message;
-        }
-
-        if (!msg && typeof err.error === 'string') {
-          msg = err.error;
-        }
-
-        if (!msg) {
-          if (err.status === 409) {
-            msg = 'Registration failed. Please try a different email.';
-          } else if (err.status === 400) {
-            msg = 'Registration failed. Please check your information and try again.';
-          } else {
-            msg = 'Registration failed. Please try again later.';
-          }
-        }
-
-        this.errorMessage.set(msg);
+        this.errorMessage.set(this.registrationError(err));
         this.loading.set(false);
       }
     });
   }
+
+  private fieldError(fields: Record<string, string>): string {
+    const messages = Object.entries(fields)
+      .filter(([key, value]) => key !== 'username' && !!value)
+      .map(([, value]) => value);
+    if (!messages.length && fields['username']) messages.push(fields['username']);
+    return [...new Set(messages)].join('. ');
+}
+
+  private registrationError(err: { error?: { fields?: Record<string, string>; message?: string } | string; status?: number }): string {
+    const body = err.error;
+    if (typeof body === 'string' && body) return body;
+    if (body && typeof body === 'object') {
+      const fields = body.fields ? this.fieldError(body.fields) : '';
+      if (fields) return fields;
+      if (body.message) return body.message;
+    }
+    if (err.status === 409) return 'Registration failed. Please try a different email.';
+    if (err.status === 400) return 'Registration failed. Please check your information and try again.';
+    return 'Registration failed. Please try again later.';
+  }
+
 }

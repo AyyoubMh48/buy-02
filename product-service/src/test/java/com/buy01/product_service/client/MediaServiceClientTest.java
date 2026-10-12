@@ -13,8 +13,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
-import com.buy01.product_service.exceptionsHandler.BadRequest;
-import com.buy01.product_service.exceptionsHandler.UpstreamServiceException;
+import com.buy01.product_service.exception.BadRequest;
+import com.buy01.product_service.exception.UpstreamServiceException;
 
 class MediaServiceClientTest {
 

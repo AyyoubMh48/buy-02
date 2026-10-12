@@ -9,7 +9,7 @@ export class MediaService {
   private readonly API_URL = `${API_BASE_URL}/media`;
   readonly MAX_FILE_SIZE = 2 * 1024 * 1024; // 2 MB
 
-  constructor(private http: HttpClient) {}
+  constructor(private readonly http: HttpClient) {}
 
   uploadImage(file: File): Observable<MediaResponse> {
     if (!file.type.startsWith('image/')) {

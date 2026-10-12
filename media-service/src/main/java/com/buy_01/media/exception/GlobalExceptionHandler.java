@@ -45,7 +45,7 @@ public class GlobalExceptionHandler {
 
     private ResponseEntity<Map<String, Object>> buildErrorResponse(HttpStatus status, String message) {
         Map<String, Object> body = new HashMap<>();
-        body.put("timestamp", LocalDateTime.now());
+        body.put("timestamp", LocalDateTime.now(java.time.ZoneOffset.UTC));
         body.put("status", status.value());
         body.put("error", status.getReasonPhrase());
         body.put("message", message);

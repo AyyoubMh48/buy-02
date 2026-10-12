@@ -131,7 +131,7 @@ class MediaServiceTest {
     void onProductImagesChanged_forbiddenOwner_throws() {
         when(repository.findById("old")).thenReturn(Optional.of(metadata));
 
-        assertThrows(ForbiddenException.class, () -> mediaService.onProductImagesChanged(
-                new ProductImagesChangedEvent("p1", "intruder", List.of("old"), List.of())));
+        var event = new ProductImagesChangedEvent("p1", "intruder", List.of("old"), List.of());
+        assertThrows(ForbiddenException.class, () -> mediaService.onProductImagesChanged(event));
     }
 }

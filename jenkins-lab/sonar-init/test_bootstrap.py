@@ -11,6 +11,12 @@ class FakeAPI:
         self.projects, self.hooks, self.generated = [], [], 0
         self.valid = True
     def call(self, endpoint, params=None, post=False, raw=False):
+        if endpoint == 'qualitygates/list':
+            return {'qualitygates': [{'name': bootstrap.GATE_NAME}]}
+        if endpoint == 'qualitygates/show':
+            return {'conditions': []}
+        if endpoint in ('qualitygates/create_condition', 'qualitygates/select', 'settings/set', 'qualityprofiles/add_project'):
+            return {}
         if endpoint == 'projects/search':
             return {'components': [{'key': k} for k in self.projects]}
         if endpoint == 'projects/create':
@@ -32,6 +38,33 @@ class FakeAPI:
         raise AssertionError(endpoint)
 
 class BootstrapTests(unittest.TestCase):
+    def test_quality_gate_preserves_existing_gate_and_updates_thresholds(self):
+        from unittest.mock import Mock
+        api = Mock()
+        api.call.side_effect = [
+            {'qualitygates': [{'name': bootstrap.GATE_NAME}]},
+            {'conditions': [{'id': 'coverage-condition', 'metric': 'coverage', 'op': 'LT', 'error': '20'}]},
+        ] + [{}] * 8
+        bootstrap.configure_quality_gate(api)
+        calls = api.call.call_args_list
+        self.assertFalse(any(c.args[0] == 'qualitygates/copy' for c in calls))
+        self.assertTrue(any(c.args[0] == 'qualitygates/update_condition' and
+            c.args[1] == {'id': 'coverage-condition', 'metric': 'coverage', 'op': 'LT', 'error': '80'}
+            for c in calls))
+        self.assertTrue(any(c.args[0] == 'qualitygates/create_condition' and
+            c.args[1]['metric'] == 'vulnerabilities' and c.args[1]['error'] == '0' for c in calls))
+
+    def test_project_gate_profiles_and_small_change_bypass_are_configured(self):
+        from unittest.mock import Mock
+        api = Mock()
+        bootstrap.configure_project(api, 'buy01-frontend', 'frontend')
+        api.call.assert_any_call('qualitygates/select',
+            {'gateName': bootstrap.GATE_NAME, 'projectKey': 'buy01-frontend'}, post=True)
+        api.call.assert_any_call('settings/set',
+            {'component': 'buy01-frontend', 'key': 'sonar.qualitygate.ignoreSmallChanges', 'value': 'false'}, post=True)
+        languages = [c.args[1]['language'] for c in api.call.call_args_list if c.args[0] == 'qualityprofiles/add_project']
+        self.assertEqual(languages, ['ts', 'js', 'web', 'css'])
+
     def test_existing_mixed_case_project_is_reused_for_token(self):
         api = FakeAPI()
         api.projects = ['Buy01-Product-Service']

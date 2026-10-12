@@ -8,8 +8,8 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 import com.buy01.product_service.dtos.external.MediaMetadataResponse;
-import com.buy01.product_service.exceptionsHandler.BadRequest;
-import com.buy01.product_service.exceptionsHandler.UpstreamServiceException;
+import com.buy01.product_service.exception.BadRequest;
+import com.buy01.product_service.exception.UpstreamServiceException;
 
 /**
  * Calls Media Service directly by its Docker Compose service name + fixed

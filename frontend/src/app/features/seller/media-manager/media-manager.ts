@@ -20,21 +20,21 @@ interface DisplayMedia {
   styleUrl: './media-manager.css',
 })
 export class MediaManager implements OnInit {
-  selectedFile = signal<File | null>(null);
-  previewUrl = signal<string | null>(null);
-  uploading = signal<boolean>(false);
-  errorMessage = signal<string>('');
-  toastMessage = signal<string>('');
+  readonly selectedFile = signal<File | null>(null);
+  readonly previewUrl = signal<string | null>(null);
+  readonly uploading = signal<boolean>(false);
+  readonly errorMessage = signal<string>('');
+  readonly toastMessage = signal<string>('');
   
   // Gallery items
-  mediaList = signal<DisplayMedia[]>([]);
+  readonly mediaList = signal<DisplayMedia[]>([]);
 
   // Preview Modal
-  previewModalItem = signal<DisplayMedia | null>(null);
+  readonly previewModalItem = signal<DisplayMedia | null>(null);
 
   constructor(
-    private mediaService: MediaService,
-    private productService: ProductService
+    private readonly mediaService: MediaService,
+    private readonly productService: ProductService
   ) {}
 
   ngOnInit(): void {
@@ -48,7 +48,7 @@ export class MediaManager implements OnInit {
         const seen = new Set<string>();
 
         for (const p of products) {
-          if (p.images && p.images.length > 0) {
+          if (p.images?.length) {
             for (const imgUrl of p.images) {
               if (imgUrl && !seen.has(imgUrl)) {
                 seen.add(imgUrl);

@@ -12,7 +12,7 @@ import com.buy_01.media.exception.InvalidFileException;
 @Service
 public class FileValidationService {
 
-    private static final long MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+    private static final long MAX_FILE_SIZE = 2L * 1024 * 1024; // 2MB
     private static final List<String> ALLOWED_MIME_TYPES = List.of(
             "image/jpeg", "image/png", "image/webp", "image/gif"
     );

@@ -27,9 +27,6 @@ public class CloudinaryStorageService {
         );
     }
 
-    // public Map<String, Object> deleteFile(String publicId) throws IOException {
-    //     return cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap());
-    // }
 
     public void deleteFile(String publicId) {
         try {

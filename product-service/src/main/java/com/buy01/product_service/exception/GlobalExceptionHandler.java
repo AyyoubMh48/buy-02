@@ -1,4 +1,4 @@
-package com.buy01.product_service.exceptionsHandler;
+package com.buy01.product_service.exception;
 
 import java.time.LocalDateTime;
 
@@ -12,21 +12,13 @@ import com.buy01.product_service.dtos.response.ErrorResponse;
  
 import jakarta.servlet.http.HttpServletRequest;
 
-// @Hidden
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationErrrors(MethodArgumentNotValidException ex,
             HttpServletRequest request) {
 
-        // this block is here to handle l errors dyal l validation
-        // Map<String, String> errors = new HashMap<>();
-        // ex.getBindingResult().getAllErrors().forEach((error) -> {
-        //     String fieldname = ((FieldError) error).getField();
-        //     String errorMessage = error.getDefaultMessage();
-        //     errors.put(fieldname, errorMessage);
-        // });
-        ErrorResponse errResp = new ErrorResponse(LocalDateTime.now(), HttpStatus.BAD_REQUEST.value(),
+        ErrorResponse errResp = new ErrorResponse(LocalDateTime.now(java.time.ZoneOffset.UTC), HttpStatus.BAD_REQUEST.value(),
                 "Validation Failed",
                 "Invalid input data",
                 request.getRequestURI());
@@ -40,7 +32,7 @@ public class GlobalExceptionHandler {
             HttpServletRequest request) {
 
         ErrorResponse errorResponse = new ErrorResponse(
-                LocalDateTime.now(),
+                LocalDateTime.now(java.time.ZoneOffset.UTC),
                 HttpStatus.BAD_REQUEST.value(),
                 "Bad Request",
                 ex.getMessage(),
@@ -57,7 +49,7 @@ public class GlobalExceptionHandler {
             HttpServletRequest request) {
 
         ErrorResponse errorResponse = new ErrorResponse(
-                LocalDateTime.now(),
+                LocalDateTime.now(java.time.ZoneOffset.UTC),
                 HttpStatus.NOT_FOUND.value(),
                 "Not Found",
                 ex.getMessage(),
@@ -72,7 +64,7 @@ public class GlobalExceptionHandler {
             HttpServletRequest request) {
 
         ErrorResponse errorResponse = new ErrorResponse(
-                LocalDateTime.now(),
+                LocalDateTime.now(java.time.ZoneOffset.UTC),
                 HttpStatus.FORBIDDEN.value(),
                 "Forbidden",
                 ex.getMessage(),
@@ -91,7 +83,7 @@ public class GlobalExceptionHandler {
             HttpServletRequest request) {
 
         ErrorResponse errorResponse = new ErrorResponse(
-                LocalDateTime.now(),
+                LocalDateTime.now(java.time.ZoneOffset.UTC),
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
                 "incomplete request",
                 "An unexpected error occurred: " + ex.getMessage(),

@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
-import java.util.Date;
+import java.time.Instant;
 
 @Service
 public class JwtService {
@@ -28,14 +28,13 @@ public class JwtService {
 
     public String generateToken(String userId, String role) {
 
-        Date now = new Date();
-        Date expiry = new Date(now.getTime() + expiration);
+        Instant now = Instant.now();
 
         return Jwts.builder()
                 .subject(userId)
                 .claim("role", role)
-                .issuedAt(now)
-                .expiration(expiry)
+                .claim(Claims.ISSUED_AT, now.getEpochSecond())
+                .claim(Claims.EXPIRATION, now.plusMillis(expiration).getEpochSecond())
                 .signWith(secretKey)
                 .compact();
     }

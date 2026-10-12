@@ -14,3 +14,10 @@ jenkins-secrets/
 # Maven download failure markers and accidental local caches
 **/*.lastUpdated
 **/.m2/
+
+# Generated quality reports
+/reports/quality/
+
+# SonarScanner working files
+**/.scannerwork/
+**/.sonar/

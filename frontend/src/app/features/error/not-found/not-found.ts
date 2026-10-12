@@ -10,7 +10,7 @@ import { RouterLink } from '@angular/router';
   styleUrl: './not-found.css',
 })
 export class NotFound {
-  constructor(private location: Location) {}
+  constructor(private readonly location: Location) {}
 
   goBack(): void {
     this.location.back();

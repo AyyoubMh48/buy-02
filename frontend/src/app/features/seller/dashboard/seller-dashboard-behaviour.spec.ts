@@ -96,19 +96,22 @@ describe('SellerDashboard behaviour', () => {
     const m = defaultMocks();
     const c = build(m.products, m.media);
     c.openCreateForm();
-    c.productForm.setValue({ name: 'N', price: 1, quantity: 1, description: 'desc' });
+    c.productForm.setValue({ name: 'New', price: 1, quantity: 1, description: 'Description' });
     await c.saveProduct();
+    expect(c.productForm.valid).toBe(true);
     expect(c.statusMessage()).toContain('image is required');
+    expect(m.products.createProduct).not.toHaveBeenCalled();
   });
 
   it('creates a new product', async () => {
     const m = defaultMocks();
     const c = build(m.products, m.media);
     c.openCreateForm();
-    c.productForm.setValue({ name: 'New', price: 5, quantity: 2, description: 'desc' });
+    c.productForm.setValue({ name: 'New', price: 5, quantity: 2, description: 'Description' });
     c.uploadImage({ target: { files: [new File(['x'], 'p.png', { type: 'image/png' })], value: '' } } as unknown as Event);
     await c.saveProduct();
-    expect(m.products.createProduct).toHaveBeenCalled();
+    expect(m.media.uploadImage).toHaveBeenCalledTimes(1);
+    expect(m.products.createProduct).toHaveBeenCalledWith(expect.objectContaining({ name: 'New', mediaIds: ['new'] }));
     expect(c.statusMessage()).toContain('created');
   });
 
@@ -125,7 +128,7 @@ describe('SellerDashboard behaviour', () => {
     m.products.createProduct.mockReturnValue(throwError(() => ({ error: { message: 'nope' } })));
     const c = build(m.products, m.media);
     c.openCreateForm();
-    c.productForm.setValue({ name: 'New', price: 5, quantity: 2, description: 'desc' });
+    c.productForm.setValue({ name: 'New', price: 5, quantity: 2, description: 'Description' });
     c.uploadImage({ target: { files: [new File(['x'], 'p.png', { type: 'image/png' })], value: '' } } as unknown as Event);
     await c.saveProduct();
     expect(c.statusMessage()).toBe('nope');

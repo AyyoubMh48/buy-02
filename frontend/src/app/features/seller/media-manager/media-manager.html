@@ -65,7 +65,7 @@
                 class="btn btn-primary btn-sm px-3" 
                 [disabled]="uploading()" 
                 (click)="upload()">
-                <span *ngIf="uploading()" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                <output *ngIf="uploading()" class="spinner-border spinner-border-sm me-1" aria-live="polite"></output>
                 {{ uploading() ? 'Processing...' : 'Intake asset' }}
               </button>
               <button class="btn btn-secondary btn-sm" (click)="clearSelection()" [disabled]="uploading()">
@@ -112,18 +112,18 @@
       
       <article class="buy-card buy-card-hover h-100 d-flex flex-column overflow-hidden media-gallery-card">
         <!-- Full Bleed Photography -->
-        <div 
-          class="media-thumb-wrapper position-relative" 
+        <button
+          class="border-0 p-0 w-100 text-start media-thumb-wrapper position-relative"
           (click)="openPreview(item)" 
-          role="button" 
-          tabindex="0" 
-          (keydown.enter)="openPreview(item)" 
+          type="button"
+
+
           aria-label="Inspect asset">
           <img [src]="item.url" class="w-100 h-100 object-fit-cover" [alt]="item.filename" loading="lazy">
           <div class="media-zoom-overlay">
             <span class="small">Inspect</span>
           </div>
-        </div>
+        </button>
 
         <div class="p-3 d-flex flex-column flex-grow-1 justify-content-between">
           <div class="mb-2">
@@ -147,15 +147,15 @@
   </div>
 
   <!-- Full-Size Image Preview Modal (Inspection Table) -->
-  <div 
+  <dialog
     class="buy-modal-backdrop" 
     *ngIf="previewModalItem() as modalItem"
-    (click)="closePreview()"
-    role="dialog"
+    (click)="$event.target === $event.currentTarget && closePreview()" (keydown.escape)="closePreview()"
+    open
     aria-modal="true"
     [attr.aria-label]="modalItem.filename">
     
-    <div class="buy-modal-content p-4" style="max-width: 640px;" (click)="$event.stopPropagation()">
+    <div class="buy-modal-content p-4" style="max-width: 640px;">
       <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
         <span class="text-truncate fw-semibold small" style="max-width: 480px;">{{ modalItem.filename }}</span>
         <button type="button" class="btn-close" (click)="closePreview()" aria-label="Close image preview"></button>
@@ -174,7 +174,7 @@
         </button>
       </div>
     </div>
-  </div>
+  </dialog>
 
   <!-- Toast Notification -->
   <div class="buy-toast-container" *ngIf="toastMessage()">

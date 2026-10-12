@@ -40,6 +40,6 @@ eureka:
 #spring.data.mongodb.uri=mongodb://admin:password123@localhost:27017/letsplay_db?authSource=admin
 
 cloudinary:
-  cloud-name: ${CLOUDINARY_CLOUD_NAME:bmgfgqae}
-  api-key: ${CLOUDINARY_API_KEY:232899191186292}
-  api-secret: ${CLOUDINARY_API_SECRET:k0TYmIcnimwalIhjMQ1zCH4-zxQ}
+  cloud-name: ${CLOUDINARY_CLOUD_NAME}
+  api-key: ${CLOUDINARY_API_KEY}
+  api-secret: ${CLOUDINARY_API_SECRET}

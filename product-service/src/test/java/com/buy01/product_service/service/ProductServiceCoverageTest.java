@@ -25,8 +25,8 @@ import com.buy01.product_service.dtos.external.MediaMetadataResponse;
 import com.buy01.product_service.dtos.req.CreateProductRequest;
 import com.buy01.product_service.dtos.req.LinkImagesRequest;
 import com.buy01.product_service.dtos.req.UpdateProduct;
-import com.buy01.product_service.exceptionsHandler.BadRequest;
-import com.buy01.product_service.exceptionsHandler.UnauthorizedException;
+import com.buy01.product_service.exception.BadRequest;
+import com.buy01.product_service.exception.UnauthorizedException;
 import com.buy01.product_service.models.Product;
 import com.buy01.product_service.repository.ProductRepository;
 import com.buy01.product_service.security.AuthenticatedUser;
@@ -47,7 +47,6 @@ class ProductServiceCoverageTest {
     private ProductService service;
 
     private final AuthenticatedUser seller = new AuthenticatedUser("owner", List.of("SELLER"));
-    private final AuthenticatedUser buyer = new AuthenticatedUser("buyer", List.of("CLIENT"));
 
     private Product product;
 
@@ -134,8 +133,9 @@ class ProductServiceCoverageTest {
         when(media.fetchMetadata("m1"))
                 .thenReturn(new MediaMetadataResponse("m1", "f", "image/png", "url", 10, "someone"));
 
+        var request = new LinkImagesRequest(List.of("m1"));
         assertThrows(UnauthorizedException.class,
-                () -> service.linkImages("p1", new LinkImagesRequest(List.of("m1")), seller));
+                () -> service.linkImages("p1", request, seller));
     }
 
     @Test

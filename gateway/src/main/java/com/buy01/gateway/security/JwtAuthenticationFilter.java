@@ -86,7 +86,6 @@ String role = claims.get("role", String.class);
                 wrappedRequest.putHeader("X-User-Roles", role);
 
                 filterChain.doFilter(wrappedRequest, response);
-                return;
    
     }
 }

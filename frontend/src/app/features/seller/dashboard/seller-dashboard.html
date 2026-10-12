@@ -86,15 +86,15 @@
   </div>
 
   <!-- Notification Banner -->
-  <div 
+  <output
     *ngIf="statusMessage()" 
     class="alert alert-dismissible fade show p-3 mb-4 rounded d-flex align-items-center gap-2"
     [class.alert-success]="statusType() === 'success'"
     [class.alert-danger]="statusType() === 'danger'"
-    role="status">
+    aria-live="polite">
     <span>{{ statusMessage() }}</span>
     <button type="button" class="btn-close ms-auto" (click)="statusMessage.set('')" aria-label="Dismiss alert"></button>
-  </div>
+  </output>
 
   <!-- Product Creation / Editing Panel -->
   <div *ngIf="showForm()" class="buy-card mb-4">
@@ -171,11 +171,11 @@
 
           <!-- Media Upload Section -->
           <div class="col-12">
-            <label class="form-label">Product imagery <span class="text-danger">*</span></label>
+            <label class="form-label" for="productImages">Product imagery <span class="text-danger">*</span></label>
             <div class="p-3 border rounded atelier-upload-bay d-flex flex-column gap-3">
               <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2">
                 <input 
-                  type="file" 
+                  id="productImages" type="file"
                   class="form-control" 
                   style="max-width: 380px;"
                   accept="image/*" 
@@ -188,7 +188,7 @@
 
               <!-- Uploading indicator -->
               <div *ngIf="uploading()" class="d-flex align-items-center gap-2 text-primary small">
-                <span class="spinner-border spinner-border-sm" role="status"></span>
+                <output class="spinner-border spinner-border-sm" aria-live="polite"></output>
                 <span>Uploading asset to workshop storage...</span>
               </div>
 
@@ -222,7 +222,7 @@
             type="submit" 
             class="btn btn-primary px-4" 
             [disabled]="productForm.invalid || attachedMedia().length === 0 || uploading() || saving()">
-            <span *ngIf="saving()" class="spinner-border spinner-border-sm me-1" role="status"></span>
+            <output *ngIf="saving()" class="spinner-border spinner-border-sm me-1" aria-live="polite"></output>
             {{ saving() ? 'Saving changes...' : (editingId() ? 'Update piece' : 'Publish piece') }}
           </button>
         </div>
@@ -246,8 +246,9 @@
             <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
         </span>
+        <label class="visually-hidden" for="listingSearch">Filter listings</label>
         <input 
-          type="search" 
+          id="listingSearch" type="search"
           class="form-control form-control-sm border-start-0" 
           placeholder="Filter listings..." 
           [ngModel]="filterQuery()" 
@@ -358,15 +359,15 @@
   </div>
 
   <!-- Accessible In-App Delete Confirmation Modal -->
-  <div 
+  <dialog
     class="buy-modal-backdrop" 
     *ngIf="pendingDeleteProduct() as itemToDelete"
-    (click)="cancelDelete()"
-    role="dialog"
+    (click)="$event.target === $event.currentTarget && cancelDelete()" (keydown.escape)="cancelDelete()"
+    open
     aria-modal="true"
     aria-labelledby="deleteModalTitle">
     
-    <div class="buy-modal-content p-4" style="max-width: 480px;" (click)="$event.stopPropagation()">
+    <div class="buy-modal-content p-4" style="max-width: 480px;">
       <div class="d-flex align-items-center gap-3 mb-3 text-danger">
         <div>
           <h3 id="deleteModalTitle" class="h5 mb-0">Confirm piece removal</h3>
@@ -385,5 +386,5 @@
         </button>
       </div>
     </div>
+  </dialog>
   </div>
-</div>

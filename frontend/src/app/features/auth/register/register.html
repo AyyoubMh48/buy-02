@@ -73,8 +73,8 @@
       </div>
 
       <!-- Account Role Selection -->
-      <div class="mb-4">
-        <label class="form-label d-block mb-2">Account role <span class="text-danger">*</span></label>
+      <fieldset class="mb-4 border-0 p-0">
+        <legend class="form-label d-block mb-2">Account role <span class="text-danger">*</span></legend>
         <div class="row g-2">
           <div class="col-6">
             <button 
@@ -98,14 +98,14 @@
             </button>
           </div>
         </div>
-      </div>
+      </fieldset>
 
       <!-- Single Brass CTA -->
       <button 
         type="submit" 
         class="btn btn-primary w-100 py-2" 
         [disabled]="loading()">
-        <span *ngIf="loading()" class="spinner-border spinner-border-sm me-2" role="status"></span>
+        <output *ngIf="loading()" class="spinner-border spinner-border-sm me-2" aria-live="polite"></output>
         {{ loading() ? 'Creating account...' : 'Create account' }}
       </button>
     </form>

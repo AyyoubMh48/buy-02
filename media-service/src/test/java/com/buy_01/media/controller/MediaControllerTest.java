@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
-import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -100,7 +99,7 @@ class MediaControllerTest {
         var response = controller.getImage("m1", "image/*");
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FOUND);
-        assertThat(response.getHeaders().getLocation().toString()).isEqualTo("https://cdn/pic.png");
+        assertThat(response.getHeaders().getLocation()).hasToString("https://cdn/pic.png");
     }
 
     @Test

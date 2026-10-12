@@ -47,7 +47,7 @@ public class MediaController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> getImage(
+    public ResponseEntity<MediaRespDto> getImage(
             @PathVariable String id,
             @RequestHeader(value = HttpHeaders.ACCEPT, required = false) String acceptHeader) {
         MediaMetaData metadata = mediaService.getMetadata(id);

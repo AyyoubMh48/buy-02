@@ -98,7 +98,7 @@ class SecurityComponentsTest {
     }
 
     @Test
-    void resolver_missingUser_throwsUnauthorized() throws Exception {
+    void resolver_missingUser_throwsUnauthorized() {
         CurrentUserArgumentResolver resolver = new CurrentUserArgumentResolver();
         NativeWebRequest webRequest = mock(NativeWebRequest.class);
         HttpServletRequest servletRequest = mock(HttpServletRequest.class);
@@ -109,7 +109,7 @@ class SecurityComponentsTest {
         when(webRequest.getNativeRequest()).thenReturn(servletRequest);
         when(servletRequest.getAttribute(UserContextFilter.USER_ATTRIBUTE)).thenReturn(null);
 
-        org.junit.jupiter.api.Assertions.assertThrows(com.buy01.product_service.exceptionsHandler.UnauthorizedException.class,
+        org.junit.jupiter.api.Assertions.assertThrows(com.buy01.product_service.exception.UnauthorizedException.class,
                 () -> resolver.resolveArgument(parameter, null, webRequest, null));
     }
 

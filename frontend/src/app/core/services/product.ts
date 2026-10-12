@@ -8,7 +8,7 @@ import { API_BASE_URL } from '../api-config';
 export class ProductService {
   private readonly API_URL = `${API_BASE_URL}/products`;
 
-  constructor(private http: HttpClient) {}
+  constructor(private readonly http: HttpClient) {}
 
   getProducts(): Observable<Product[]> {
     return this.http.get<Product[]>(this.API_URL);

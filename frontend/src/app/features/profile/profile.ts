@@ -13,15 +13,15 @@ import { UpdateProfileDialog } from './update-profile-dialog/update-profile-dial
   styleUrl: './profile.css',
 })
 export class Profile implements OnInit {
-  profile = signal<User | null>(null);
-  loading = signal(true);
-  errorMessage = signal('');
-  dialogOpen = signal(false);
-  toastMessage = signal('');
+  readonly profile = signal<User | null>(null);
+  readonly loading = signal(true);
+  readonly errorMessage = signal('');
+  readonly dialogOpen = signal(false);
+  readonly toastMessage = signal('');
 
   constructor(
-    private profileService: ProfileService,
-    private auth: AuthService
+    private readonly profileService: ProfileService,
+    private readonly auth: AuthService
   ) {}
 
   ngOnInit(): void {

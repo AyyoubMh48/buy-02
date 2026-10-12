@@ -16,6 +16,40 @@ COMPONENTS = {'product': 'product-service', 'user': 'user-service',
               'media': 'media-service', 'gateway': 'gateway',
               'discovery': 'discovery', 'frontend': 'frontend'}
 
+GATE_NAME = 'Buy01 Quality Gate'
+
+
+def configure_quality_gate(api):
+    """Keep Sonar way's new-code rules and reject existing vulnerabilities."""
+    gates = api.call('qualitygates/list')['qualitygates']
+    if not any(gate['name'] == GATE_NAME for gate in gates):
+        api.call('qualitygates/copy', {'sourceName': 'Sonar way', 'name': GATE_NAME}, post=True)
+    conditions = api.call('qualitygates/show', {'name': GATE_NAME})['conditions']
+    required = {'new_violations': ('GT', '0'), 'new_coverage': ('LT', '80'),
+                'new_duplicated_lines_density': ('GT', '3'),
+                'new_security_hotspots_reviewed': ('LT', '100'),
+                'vulnerabilities': ('GT', '0'), 'bugs': ('GT', '0'),
+                'coverage': ('LT', '80'), 'code_smells': ('GT', '0')}
+    existing = {condition['metric']: condition for condition in conditions}
+    for metric, (operator, threshold) in required.items():
+        current = existing.get(metric)
+        if current and (current['op'], current['error']) == (operator, threshold):
+            continue
+        endpoint = 'qualitygates/update_condition' if current else 'qualitygates/create_condition'
+        params = {'metric': metric, 'op': operator, 'error': threshold}
+        params.update({'id': current['id']} if current else {'gateName': GATE_NAME})
+        api.call(endpoint, params, post=True)
+
+
+def configure_project(api, key, component):
+    api.call('qualitygates/select', {'gateName': GATE_NAME, 'projectKey': key}, post=True)
+    api.call('settings/set', {'component': key,
+             'key': 'sonar.qualitygate.ignoreSmallChanges', 'value': 'false'}, post=True)
+    languages = ('ts', 'js', 'web', 'css') if component == 'frontend' else ('java', 'xml')
+    for language in languages:
+        api.call('qualityprofiles/add_project', {'project': key,
+                 'language': language, 'qualityProfile': 'Sonar way'}, post=True)
+
 class APIError(RuntimeError):
     def __init__(self, endpoint, status, detail):
         self.status = status
@@ -105,6 +139,7 @@ def atomic_write(path, value, expected=None):
 
 
 def provision(api, directory):
+    configure_quality_gate(api)
     projects = project_inventory(api)
     for component, suffix in COMPONENTS.items():
         key = 'buy01-' + suffix
@@ -125,6 +160,7 @@ def provision(api, directory):
                     raise
                 key = matches[0]['key']
             print('Ensured project ' + key)
+        configure_project(api, key, component)
         path = directory / ('sonar-' + component + '-token')
         if path.is_symlink():
             raise RuntimeError(f'{path.name}: unsafe existing file; no overwrite performed')
@@ -148,8 +184,8 @@ def provision(api, directory):
         key_path = directory / ('sonar-' + component + '-project-key')
         atomic_write(key_path, key, key_path.read_bytes() if key_path.exists() else None)
     url = os.environ.get('JENKINS_WEBHOOK_URL', 'http://jenkins:8080/sonarqube-webhook/')
-    hooks = api.call('webhooks/list')['webhooks']
-    if not any(hook['url'] == url for hook in hooks):
+    hooks = api.call('webhooks/list')['webhooks'] if url else []
+    if url and not any(hook['url'] == url for hook in hooks):
         api.call('webhooks/create', {'name': 'Buy01 Jenkins', 'url': url}, post=True)
         print('Created Jenkins webhook')
     print('Provisioning complete; recreate Jenkins to load secret files')

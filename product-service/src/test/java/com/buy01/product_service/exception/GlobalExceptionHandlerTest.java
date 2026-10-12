@@ -1,4 +1,4 @@
-package com.buy01.product_service.exceptionsHandler;
+package com.buy01.product_service.exception;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -18,7 +18,7 @@ class GlobalExceptionHandlerTest {
     private final HttpServletRequest request = mock(HttpServletRequest.class);
 
     @Test
-    void handleValidationErrors_returnsBadRequest() throws Exception {
+    void handleValidationErrors_returnsBadRequest() {
         when(request.getRequestURI()).thenReturn("/products");
         var binding = new BeanPropertyBindingResult(new Object(), "target");
         var ex = new MethodArgumentNotValidException(mock(MethodParameter.class), binding);

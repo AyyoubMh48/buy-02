@@ -6,7 +6,7 @@ import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
-import  com.buy01.product_service.exceptionsHandler.UnauthorizedException;
+import  com.buy01.product_service.exception.UnauthorizedException;
 
 import  jakarta.servlet.http.HttpServletRequest;
  
@@ -22,10 +22,10 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
  
 
     @Override
-    public Object resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer, NativeWebRequest NativeReq, WebDataBinderFactory binderFactory) throws Exception {
+    public Object resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer, NativeWebRequest nativeReq, WebDataBinderFactory binderFactory) throws Exception {
         
-                HttpServletRequest ServletReq = (HttpServletRequest) NativeReq.getNativeRequest();
-                Object user = ServletReq.getAttribute(UserContextFilter.USER_ATTRIBUTE);
+                HttpServletRequest servletReq = (HttpServletRequest) nativeReq.getNativeRequest();
+                Object user = servletReq.getAttribute(UserContextFilter.USER_ATTRIBUTE);
         
             CurrentUser  annotation = parameter.getParameterAnnotation(CurrentUser.class);
             boolean requiired = annotation == null || annotation.requiired();

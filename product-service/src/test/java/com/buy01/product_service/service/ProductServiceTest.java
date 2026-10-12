@@ -1,8 +1,8 @@
 package com.buy01.product_service.service;
 
 import com.buy01.product_service.client.MediaServiceClient;
-import com.buy01.product_service.exceptionsHandler.ResourceNotFoundException;
-import com.buy01.product_service.exceptionsHandler.UnauthorizedException;
+import com.buy01.product_service.exception.ResourceNotFoundException;
+import com.buy01.product_service.exception.UnauthorizedException;
 import com.buy01.product_service.models.Product;
 import com.buy01.product_service.repository.ProductRepository;
 import com.buy01.product_service.security.AuthenticatedUser;

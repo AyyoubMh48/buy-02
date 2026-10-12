@@ -7,6 +7,7 @@ pipeline {
     triggers {
         // Triggers the build instantly when GitHub sends a webhook push event
         githubPush()
+        cron('H H(1-4) * * *')
     }
     environment {
         BRANCH_NAME = "${env.GIT_BRANCH ? env.GIT_BRANCH.replace('origin/', '') : 'main'}"
@@ -81,7 +82,7 @@ pipeline {
             steps {
                 dir('frontend') {
                     sh 'npm ci'
-                    sh 'CI=true npm test -- --watch=false --coverage --coverage-reporters=lcov'
+                    sh 'CI=true npm run test:coverage'
                 }
             }
         }
@@ -330,7 +331,7 @@ pipeline {
         // ========================================
         stage('Prepare TLS Certificates') {
             when {
-                branch 'main'
+                expression { env.BRANCH_NAME == 'main' && !currentBuild.getBuildCauses('hudson.triggers.TimerTrigger$TimerTriggerCause') }
             }
             steps {
                 withCredentials([
@@ -374,7 +375,7 @@ pipeline {
         // ========================================
         stage('Validate Compose') {
             when {
-                branch 'main'
+                expression { env.BRANCH_NAME == 'main' && !currentBuild.getBuildCauses('hudson.triggers.TimerTrigger$TimerTriggerCause') }
             }
             steps {
                 withCredentials([
@@ -401,7 +402,7 @@ pipeline {
         // ========================================
         stage('Deploy') {
             when {
-                branch 'main'
+                expression { env.BRANCH_NAME == 'main' && !currentBuild.getBuildCauses('hudson.triggers.TimerTrigger$TimerTriggerCause') }
             }
             steps {
                 withCredentials([
@@ -431,7 +432,7 @@ pipeline {
         // ========================================
         stage('Post-Deployment Health Check') {
             when {
-                branch 'main'
+                expression { env.BRANCH_NAME == 'main' && !currentBuild.getBuildCauses('hudson.triggers.TimerTrigger$TimerTriggerCause') }
             }
             steps {
                 withCredentials([
@@ -645,6 +646,7 @@ pipeline {
         }
         always {
             // Archive and publish JUnit test reports for all microservices
+            archiveArtifacts artifacts: '**/target/site/jacoco/**, frontend/coverage/frontend/**', allowEmptyArchive: true
             junit testResults: '**/target/surefire-reports/*.xml', allowEmptyResults: true
             echo 'Pipeline finished.'
         }

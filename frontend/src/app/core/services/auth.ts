@@ -9,10 +9,10 @@ import { API_BASE_URL } from '../api-config';
 export class AuthService {
   private readonly API_URL = `${API_BASE_URL}/auth`;
   
-  currentUser = signal<User | null>(this.getUserFromStorage());
-  token = signal<string | null>(localStorage.getItem('buy01_token'));
+  readonly currentUser = signal<User | null>(this.getUserFromStorage());
+  readonly token = signal<string | null>(localStorage.getItem('buy01_token'));
 
-  constructor(private http: HttpClient, private router: Router) {}
+  constructor(private readonly http: HttpClient, private readonly router: Router) {}
 
   login(credentials: { email: string; password: string }): Observable<AuthResponse> {
     return this.http.post<AuthResponse>(`${this.API_URL}/login`, credentials).pipe(

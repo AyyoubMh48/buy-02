@@ -2,7 +2,6 @@ package com.buy01.user_service.exception;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -70,7 +69,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void handleValidationException_collectsFieldAndGlobalErrors() throws Exception {
+    void handleValidationException_collectsFieldAndGlobalErrors() {
         BeanPropertyBindingResult binding = new BeanPropertyBindingResult(new Object(), "target");
         binding.addError(new FieldError("target", "email", "Invalid email format"));
         binding.addError(new ObjectError("target", "Global problem"));

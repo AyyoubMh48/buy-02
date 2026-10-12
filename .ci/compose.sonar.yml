@@ -1,0 +1,31 @@
+# Isolated SonarQube instance for each GitHub-hosted CI run.
+services:
+  db:
+    image: postgres@sha256:65b16a8b326e0cfbdf33fa7e783f2a0cb352a61448616ccccfd616ef42aa0f65
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_DB: sonarqube
+      POSTGRES_PASSWORD: ${SONAR_CI_DB_PASSWORD:?required}
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U sonar -d sonarqube']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  sonarqube:
+    image: sonarqube@sha256:c0f1160bccfa435db4168c2d7df69af3c3ea7bfeb87395613014048fb33a68c1
+    hostname: sonarqube
+    extra_hosts: ['sonarqube:127.0.0.1']
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://db:5432/sonarqube
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: ${SONAR_CI_DB_PASSWORD:?required}
+    ports: ['127.0.0.1:19000:9000']
+    healthcheck:
+      test: [CMD-SHELL, 'curl -fsS http://localhost:9000/api/system/status | grep -q UP']
+      interval: 5s
+      timeout: 5s
+      retries: 120
+      start_period: 30s

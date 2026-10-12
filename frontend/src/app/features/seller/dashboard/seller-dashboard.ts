@@ -14,29 +14,29 @@ import { Product } from '../../../core/models/product';
   styleUrl: './seller-dashboard.css'
 })
 export class SellerDashboard implements OnInit, OnDestroy {
-  products = signal<Product[]>([]);
+  readonly products = signal<Product[]>([]);
   productForm: FormGroup;
-  showForm = signal<boolean>(false);
-  editingId = signal<string | null>(null);
-  attachedMedia = signal<{ id?: string; url: string; file?: File }[]>([]);
-  uploading = signal<boolean>(false);
-  saving = signal<boolean>(false);
-  statusMessage = signal<string>('');
-  statusType = signal<'success' | 'danger' | 'info'>('info');
+  readonly showForm = signal<boolean>(false);
+  readonly editingId = signal<string | null>(null);
+  readonly attachedMedia = signal<{ id?: string; url: string; file?: File }[]>([]);
+  readonly uploading = signal<boolean>(false);
+  readonly saving = signal<boolean>(false);
+  readonly statusMessage = signal<string>('');
+  readonly statusType = signal<'success' | 'danger' | 'info'>('info');
 
-  private draftMediaIds = new Set<string>();
-  private previewUrls = new Set<string>();
+  private readonly draftMediaIds = new Set<string>();
+  private readonly previewUrls = new Set<string>();
 
   // Search in seller table
-  filterQuery = signal<string>('');
+  readonly filterQuery = signal<string>('');
 
   // Accessible in-app delete modal (R-26, R-32)
-  pendingDeleteProduct = signal<Product | null>(null);
+  readonly pendingDeleteProduct = signal<Product | null>(null);
 
   constructor(
-    private fb: FormBuilder,
-    private productService: ProductService,
-    private mediaService: MediaService
+    private readonly fb: FormBuilder,
+    private readonly productService: ProductService,
+    private readonly mediaService: MediaService
   ) {
     this.productForm = this.fb.group({
       name: ['', [Validators.required, Validators.minLength(2)]],
@@ -58,18 +58,18 @@ export class SellerDashboard implements OnInit, OnDestroy {
   }
 
   // Real dashboard metrics (R-17 - genuine data only, no fabricated numbers)
-  totalListings = computed(() => this.products().length);
-  totalUnits = computed(() => this.products().reduce((acc, p) => acc + (p.quantity || 0), 0));
-  inStockCount = computed(() => this.products().filter(p => (p.quantity || 0) > 0).length);
-  outOfStockCount = computed(() => this.products().filter(p => (p.quantity || 0) === 0).length);
+  readonly totalListings = computed(() => this.products().length);
+  readonly totalUnits = computed(() => this.products().reduce((acc, p) => acc + (p.quantity || 0), 0));
+  readonly inStockCount = computed(() => this.products().filter(p => (p.quantity || 0) > 0).length);
+  readonly outOfStockCount = computed(() => this.products().filter(p => (p.quantity || 0) === 0).length);
 
   // Filtered seller products
-  filteredProducts = computed(() => {
+  readonly filteredProducts = computed(() => {
     const q = this.filterQuery().trim().toLowerCase();
     if (!q) return this.products();
     return this.products().filter(p =>
       p.name.toLowerCase().includes(q) ||
-      (p.description && p.description.toLowerCase().includes(q))
+      p.description?.toLowerCase().includes(q)
     );
   });
 
@@ -210,7 +210,7 @@ export class SellerDashboard implements OnInit, OnDestroy {
 
   confirmDelete(): void {
     const p = this.pendingDeleteProduct();
-    if (!p || !p.id) return;
+    if (!p?.id) return;
 
     this.productService.deleteProduct(p.id).subscribe({
       next: () => {

@@ -100,8 +100,8 @@
 
   <!-- Toast Container -->
   <div class="buy-toast-container" *ngIf="toastMessage()">
-    <div class="buy-toast" role="status">
+    <output class="buy-toast" aria-live="polite">
       <span>{{ toastMessage() }}</span>
+    </output>
     </div>
   </div>
-</div>

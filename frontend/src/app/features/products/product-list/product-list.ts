@@ -12,25 +12,25 @@ import { Product } from '../../../core/models/product';
   styleUrl: './product-list.css',
 })
 export class ProductList implements OnInit {
-  products = signal<Product[]>([]);
-  loading = signal<boolean>(true);
-  loadError = signal<string>('');
+  readonly products = signal<Product[]>([]);
+  readonly loading = signal<boolean>(true);
+  readonly loadError = signal<string>('');
 
   // Search, Filter & View Controls
-  searchQuery = signal<string>('');
-  sortBy = signal<string>('featured');
-  filterStock = signal<string>('all');
-  viewMode = signal<'grid' | 'list'>('grid');
+  readonly searchQuery = signal<string>('');
+  readonly sortBy = signal<string>('featured');
+  readonly filterStock = signal<string>('all');
+  readonly viewMode = signal<'grid' | 'list'>('grid');
 
   // Interactive Quick View Modal (R-26, C-2)
-  selectedProduct = signal<Product | null>(null);
-  activeModalImage = signal<string>('');
+  readonly selectedProduct = signal<Product | null>(null);
+  readonly activeModalImage = signal<string>('');
 
   // Toast Feedback
-  toastMessage = signal<string>('');
-  private toastTimeout: any;
+  readonly toastMessage = signal<string>('');
+  private toastTimeout: ReturnType<typeof setTimeout> | undefined;
 
-  constructor(private productService: ProductService) {}
+  constructor(private readonly productService: ProductService) {}
 
   ngOnInit(): void {
     this.loadProducts();
@@ -52,14 +52,14 @@ export class ProductList implements OnInit {
   }
 
   // Computed filtered & sorted product list
-  filteredProducts = computed(() => {
+  readonly filteredProducts = computed(() => {
     let list = [...this.products()];
     const query = this.searchQuery().trim().toLowerCase();
 
     if (query) {
       list = list.filter(p =>
         p.name.toLowerCase().includes(query) ||
-        (p.description && p.description.toLowerCase().includes(query))
+        p.description?.toLowerCase().includes(query)
       );
     }
 

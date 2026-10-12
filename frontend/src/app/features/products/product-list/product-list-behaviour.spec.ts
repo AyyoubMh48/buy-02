@@ -112,7 +112,8 @@ describe('ProductList behaviour', () => {
   it('onImageError hides the image and reveals the fallback', () => {
     const img = document.createElement('img');
     const fallback = document.createElement('div');
-    img.appendChild(fallback);
+    const container = document.createElement('div');
+    container.append(img, fallback);
     component.onImageError({ target: img } as unknown as Event);
     expect(img.style.display).toBe('none');
     expect(fallback.style.display).toBe('flex');

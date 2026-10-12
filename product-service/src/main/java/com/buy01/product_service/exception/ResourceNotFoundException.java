@@ -1,4 +1,4 @@
-package com.buy01.product_service.exceptionsHandler;
+package com.buy01.product_service.exception;
 
 
 public class ResourceNotFoundException extends RuntimeException{

@@ -15,9 +15,9 @@ import com.buy01.product_service.dtos.req.UpdateProduct;
 import com.buy01.product_service.dtos.response.ProductResponse;
 import com.buy01.product_service.events.ProductCreatedEvent;
 import com.buy01.product_service.events.ProductImagesChangedEvent;
-import com.buy01.product_service.exceptionsHandler.BadRequest;
-import com.buy01.product_service.exceptionsHandler.ResourceNotFoundException;
-import com.buy01.product_service.exceptionsHandler.UnauthorizedException;
+import com.buy01.product_service.exception.BadRequest;
+import com.buy01.product_service.exception.ResourceNotFoundException;
+import com.buy01.product_service.exception.UnauthorizedException;
 import com.buy01.product_service.models.Product;
 import com.buy01.product_service.repository.ProductRepository;
 import com.buy01.product_service.security.AuthenticatedUser;
@@ -33,7 +33,7 @@ public class ProductService {
  private final ProductRepository productRepository;
  private final MediaServiceClient mediaServiceClient;
  private final KafkaTemplate<String, Object> kafkaTemplate;
-//   this is going to bring all the products :;
+
 
 
  public  List<ProductResponse> getThemAll(){

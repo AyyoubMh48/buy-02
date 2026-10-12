@@ -51,6 +51,20 @@ describe('guards and interceptor', () => {
     expect(navigate).toHaveBeenCalledWith(['/products']);
   });
 
+  it('roleGuard denies anonymous users without checking their role', () => {
+    const auth = TestBed.inject(AuthService);
+    const router = TestBed.inject(Router);
+    vi.spyOn(auth, 'isLoggedIn').mockReturnValue(false);
+    const hasRole = vi.spyOn(auth, 'hasRole').mockReturnValue(true);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+    const result = TestBed.runInInjectionContext(() => roleGuard('SELLER')({} as any, {} as any));
+
+    expect(result).toBe(false);
+    expect(hasRole).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith(['/products']);
+  });
+
   it('jwtInterceptor attaches bearer token', async () => {
     const auth = TestBed.inject(AuthService);
     vi.spyOn(auth, 'token').mockReturnValue('tok');
