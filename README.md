@@ -47,7 +47,7 @@ The application runs inside the `jenkins-docker` Docker daemon. The host's norma
 - Sufficient free memory and disk for Jenkins, SonarQube, and builds (approximately 8 GB available RAM is a useful starting point)
 
 SonarQube's Elasticsearch needs a suitable host setting:
-
+.
 ```bash
 sysctl vm.max_map_count
 ```
