@@ -1,5 +1,5 @@
 # Buy01 — Microservices Marketplace with CI/CD
-
+;;
 A full-stack marketplace built with **Spring Boot microservices** and **Angular**, with an automated **Jenkins + SonarQube** pipeline for testing, code analysis, and Docker deployment.
 
 Buyers can browse products; sellers can manage their catalog and upload product images. The project also demonstrates service discovery, event-driven communication, security, code coverage, quality gates, and deployment health checks.
