@@ -20,6 +20,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -345,6 +346,17 @@ class OrderControllerTest {
         mvc.perform(asSeller(patch("/orders/{id}/status", ORDER_ID)).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\": \"PENDING\"}"))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void updateStatus_whenModifiedConcurrently_returnsConflict() throws Exception {
+        when(orderService.updateStatus(eq(ORDER_ID), any(), eq(seller)))
+                .thenThrow(new OptimisticLockingFailureException("version mismatch"));
+
+        mvc.perform(asSeller(patch("/orders/{id}/status", ORDER_ID)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\": \"CONFIRMED\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("The order was modified at the same time, please retry"));
     }
 
     // ---------- generic errors ----------
