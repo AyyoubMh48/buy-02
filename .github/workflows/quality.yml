@@ -37,6 +37,11 @@ jobs:
           node-version: '24.20.0'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: CI provisioning and configuration tests
+        run: |
+          python3 -m unittest discover -s jenkins-lab/sonar-init -p 'test_*.py'
+          python3 -m unittest discover -s .ci -p 'test_*.py'
+          bash -n jenkins-lab/docker-entrypoint.sh
       - name: Frontend tests and coverage
         working-directory: frontend
         env:
@@ -47,7 +52,7 @@ jobs:
           npm run build
       - name: Backend tests and coverage
         run: |
-          for service in product-service user-service media-service gateway discovery; do
+          for service in product-service user-service media-service order-service gateway discovery; do
             (cd "$service" && bash ./mvnw -B clean verify)
             test -s "$service/target/site/jacoco/jacoco.xml"
           done

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Scan six projects; save reviewable metrics even when a gate fails.
+"""Scan all provisioned projects; save reviewable metrics even when a gate fails.
 
 --initialize is only for a fresh, disposable CI SonarQube server. Without it,
 use SONAR_TOKEN to analyze against an existing server (local validation).

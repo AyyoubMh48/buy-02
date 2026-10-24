@@ -3,6 +3,9 @@ import { of, throwError } from 'rxjs';
 
 import { ProductList } from './product-list';
 import { ProductService } from '../../../core/services/product';
+import { CartService } from '../../../core/services/cart';
+import { AuthService } from '../../../core/services/auth';
+import { Router } from '@angular/router';
 import { Product } from '../../../core/models/product';
 
 const products: Product[] = [
@@ -13,6 +16,9 @@ const products: Product[] = [
 
 describe('ProductList behaviour', () => {
   let component: ProductList;
+  const cartMock = { add: vi.fn(() => of({})) };
+  const authMock = { isLoggedIn: () => true, hasRole: () => true };
+  const routerMock = { navigate: vi.fn() };
   let serviceMock: { getProducts: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
@@ -20,7 +26,7 @@ describe('ProductList behaviour', () => {
     TestBed.configureTestingModule({
       providers: [{ provide: ProductService, useValue: serviceMock }],
     });
-    component = TestBed.runInInjectionContext(() => new ProductList(TestBed.inject(ProductService)));
+    component = TestBed.runInInjectionContext(() => new ProductList(TestBed.inject(ProductService), cartMock as unknown as CartService, authMock as unknown as AuthService, routerMock as unknown as Router));
   });
 
   it('loads products on init', () => {

@@ -170,7 +170,7 @@ pipeline {
         stage('Coverage') {
             steps {
                 sh '''
-                    for component in product-service user-service media-service gateway discovery; do
+                    for component in product-service user-service media-service order-service gateway discovery; do
                         test -s "$component/target/site/jacoco/jacoco.xml"
                     done
                     test -s frontend/coverage/frontend/lcov.info
@@ -187,6 +187,7 @@ pipeline {
                         ['product-service', 'product', 'buy01-product-service'],
                         ['user-service', 'user', 'buy01-user-service'],
                         ['media-service', 'media', 'buy01-media-service'],
+                        ['order-service', 'order', 'buy01-order-service'],
                         ['gateway', 'gateway', 'buy01-gateway'],
                         ['discovery', 'discovery', 'buy01-discovery'],
                         ['frontend', 'frontend', 'buy01-frontend']

@@ -99,9 +99,9 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage(), request, null);
     }
 
-    @ExceptionHandler(ConflictException.class)
-    public ResponseEntity<ErrorResponse> handleConflict(ConflictException ex, HttpServletRequest request) {
-        return build(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request, null);
+    @ExceptionHandler({ConflictException.class, org.springframework.dao.OptimisticLockingFailureException.class, org.springframework.dao.DuplicateKeyException.class})
+    public ResponseEntity<ErrorResponse> handleConflict(RuntimeException ex, HttpServletRequest request) {
+        return build(HttpStatus.CONFLICT, "Conflict", ex instanceof ConflictException ? ex.getMessage() : "Cart changed concurrently. Reload and retry", request, null);
     }
 
     @ExceptionHandler(UpstreamServiceException.class)

@@ -236,6 +236,7 @@ services:
 
     networks:
       - buy01-network
+      - order-api-network
 
     healthcheck:
       test:
@@ -288,6 +289,7 @@ services:
 
     networks:
       - buy01-network
+      - order-api-network
 
     healthcheck:
       test:
@@ -386,6 +388,7 @@ services:
 
     networks:
       - buy01-network
+      - order-api-network
       - product-db-network
 
     healthcheck:
@@ -464,6 +467,8 @@ services:
     restart: unless-stopped
 
     environment:
+      PRODUCT_SERVICE_URL: "http://product-service:8082/products"
+      ORDERS_SERVICE_URL: "http://order-service:8084/orders"
       SERVER_PORT: "8084"
 
       EUREKA_CLIENT_SERVICE_URL: "http://discovery:8761/eureka/"
@@ -484,7 +489,7 @@ services:
         condition: service_healthy
 
     networks:
-      - buy01-network
+      - order-api-network
       - order-db-network
 
     healthcheck:
@@ -566,3 +571,9 @@ networks:
 
   order-db-network:
     driver: bridge
+
+  # Cart lives in order-service. Only Gateway, Product and Discovery share this API network.
+  # Membership limits reachability; it does not authenticate container identity.
+  order-api-network:
+    driver: bridge
+    internal: true

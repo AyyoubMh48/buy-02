@@ -143,13 +143,14 @@ docker compose -f jenkins-lab/compose.yml --profile bootstrap run --rm sonar-ini
 
 Successful output should end with `Provisioning complete; recreate Jenkins to load secret files`.
 
-The bootstrap prepares **six SonarQube projects**, their analysis tokens, and the internal Jenkins quality-gate webhook:
+The bootstrap prepares **seven SonarQube projects**, their analysis tokens, and the internal Jenkins quality-gate webhook:
 
 | Component | SonarQube project key | Jenkins credential ID |
 | --- | --- | --- |
 | Product Service | `buy01-product-service` | `sonar-product-token` |
 | User Service | `buy01-user-service` | `sonar-user-token` |
 | Media Service | `buy01-media-service` | `sonar-media-token` |
+| Order Service (Cart & Checkout) | `buy01-order-service` | `sonar-order-token` |
 | API Gateway | `buy01-gateway` | `sonar-gateway-token` |
 | Eureka Discovery | `buy01-discovery` | `sonar-discovery-token` |
 | Angular frontend | `buy01-frontend` | `sonar-frontend-token` |
@@ -166,7 +167,7 @@ docker compose -f jenkins-lab/compose.yml ps
 Open **http://localhost:8085**, sign in as `admin` using the password from step 1, and verify:
 
 - **Manage Jenkins → System → SonarQube installations** shows `SonarQube` at `http://sonarqube:9000`.
-- **Manage Jenkins → Credentials** contains the six SonarQube credential IDs.
+- **Manage Jenkins → Credentials** contains the seven SonarQube credential IDs.
 - The `first-pipeline` job exists.
 
 **Important JCasC check:** Having SonarQube settings inside `/casc/jenkins.yaml` does **not** prove Jenkins applied them. In **Manage Jenkins → Configuration as Code**, check the **last applied configuration path** and verify that the server installation is actually visible. If Jenkins applies `/tmp/jenkins-base.yaml` without the Sonar section, investigate the startup/JCasC generation path instead of manually adding the server or clearing Docker volumes.
@@ -180,7 +181,7 @@ The expected sequence is:
 1. Checkout from GitHub.
 2. Run backend tests, package JARs, and generate JaCoCo coverage.
 3. Run Angular tests, generate LCOV coverage, and build the frontend.
-4. Analyze all six projects in SonarQube and wait for their quality gates.
+4. Analyze all seven projects in SonarQube and wait for their quality gates.
 5. Only if all gates pass, build Docker images tagged with the Jenkins build number.
 6. Deploy the application, check health, and attempt rollback when an eligible previous release exists and deployment health fails.
 
