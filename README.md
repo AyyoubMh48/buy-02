@@ -19,7 +19,7 @@ Buyers can browse products; sellers can manage their catalog and upload product 
 | Infrastructure | Docker Compose + Docker-in-Docker | Isolated services and application deployment |
 
 ## How it works
-
+d
 ```mermaid
 flowchart TD
     Developer[Developer pushes code] --> GitHub
