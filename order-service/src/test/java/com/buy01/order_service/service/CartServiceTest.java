@@ -51,7 +51,8 @@ class CartServiceTest {
     }
     @Test void anonymousAndSellersAreRejected() {
         assertThatThrownBy(() -> service.get(null)).isInstanceOf(UnauthorizedException.class);
-        assertThatThrownBy(() -> service.get(new AuthenticatedUser("seller", List.of("SELLER")))).isInstanceOf(ForbiddenException.class);
+        var seller = new AuthenticatedUser("seller", List.of("SELLER"));
+        assertThatThrownBy(() -> service.get(seller)).isInstanceOf(ForbiddenException.class);
         verifyNoInteractions(products);
     }
     @Test void addsAndUpdatesQuantities() {
@@ -72,7 +73,8 @@ class CartServiceTest {
     @Test void clearEmptiesTheCart() { assertThat(service.clear(user).items()).isEmpty(); }
     @Test void productOutageNeverSubmitsAnOrder() {
         when(products.get("p1")).thenThrow(new UpstreamServiceException("down"));
-        assertThatThrownBy(() -> service.checkout(new CheckoutRequest(address, "old"), "key", user)).isInstanceOf(UpstreamServiceException.class);
+        var request = new CheckoutRequest(address, "old");
+        assertThatThrownBy(() -> service.checkout(request, "key", user)).isInstanceOf(UpstreamServiceException.class);
         verifyNoInteractions(orders);
         assertThat(cart.getItems()).hasSize(1);
     }
@@ -114,7 +116,8 @@ class CartServiceTest {
         var request = request(); when(orders.create(any(), anyString(), any())).thenReturn(order());
         service.checkout(request, "key", user);
         var changed = new ShippingAddressDto("Other", "1", "Street", "City", "100", "Morocco");
-        assertThatThrownBy(() -> service.checkout(new CheckoutRequest(changed, request.reviewToken()), "key", user)).isInstanceOf(ConflictException.class);
+        var changedRequest = new CheckoutRequest(changed, request.reviewToken());
+        assertThatThrownBy(() -> service.checkout(changedRequest, "key", user)).isInstanceOf(ConflictException.class);
     }
     @Test void optimisticConflictDoesNotSubmitOrder() {
         var request = request();
