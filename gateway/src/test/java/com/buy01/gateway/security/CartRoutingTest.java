@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.concurrent.atomic.AtomicReference;
 import com.sun.net.httpserver.HttpServer;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.AfterAll;
@@ -69,7 +70,7 @@ class CartRoutingTest {
     }
     @Test void checkoutPreservesExistingCsrfProtectionAndRoutesWithToken() throws Exception {
         var csrf = http.send(request("/csrf").GET().build(), HttpResponse.BodyHandlers.ofString());
-        String token = csrf.body().replaceAll(".*\\\"token\\\":\\\"([^\\\"]+)\\\".*", "$1");
+        String token = new ObjectMapper().readTree(csrf.body()).required("token").asText();
         String cookie = csrf.headers().firstValue("Set-Cookie").orElseThrow().split(";", 2)[0];
         for (String path : new String[]{"/cart/checkout", "/api/cart/checkout"}) {
             var rejected = http.send(request(path).header("Authorization", "Bearer " + jwt("CLIENT"))

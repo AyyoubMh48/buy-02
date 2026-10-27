@@ -1,7 +1,7 @@
 <main class="container py-4" style="max-width:850px">
   <h1>Pay on Delivery checkout</h1>
   <p class="text-muted" aria-label="Checkout progress">Delivery address → Review → Confirmation</p>
-  <p *ngIf="busy()" role="status">Please wait…</p>
+  <output *ngIf="busy()" class="d-block mb-3">Please wait…</output>
   <div *ngIf="error()" class="alert alert-danger" role="alert">{{ error() }}</div>
   <a routerLink="/cart" *ngIf="step() !== 'done'">Back to cart</a>
   <p *ngIf="cart() && !cart()!.items.length && step() !== 'done'">Your cart is empty.</p>
@@ -31,9 +31,13 @@
       <button class="btn btn-primary" (click)="confirm()" [disabled]="busy()">{{ pending() ? 'Retry confirmation' : 'Confirm Pay on Delivery' }}</button>
     </div>
   </section>
-  <section *ngIf="step() === 'done' && order() as result" class="buy-card p-4 mt-3" role="status">
-    <h2 class="h4">Order confirmed</h2><p>Order reference: {{ result.id }}</p>
-    <p>Pay {{ result.totalAmount | currency:'USD' }} on delivery.</p><a routerLink="/products">Continue shopping</a>
+  <section *ngIf="step() === 'done' && order() as result" class="buy-card p-4 mt-3">
+    <h2 class="h4">Order confirmed</h2>
+    <output class="d-block">
+      <span class="d-block mb-3">Order reference: {{ result.id }}</span>
+      <span class="d-block mb-3">Pay {{ result.totalAmount | currency:'USD' }} on delivery.</span>
+    </output>
+    <a routerLink="/products">Continue shopping</a>
   </section>
   <button *ngIf="!cart() && !busy()" class="btn btn-secondary mt-3" (click)="load()">Retry loading checkout</button>
 </main>

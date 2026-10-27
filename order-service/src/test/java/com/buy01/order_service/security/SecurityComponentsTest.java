@@ -115,20 +115,20 @@ class SecurityComponentsTest {
 
     @SuppressWarnings("unused")
     private static final class Handlers {
-        void required(@CurrentUser AuthenticatedUser user) {
-            // used only for its parameter metadata
+        AuthenticatedUser required(@CurrentUser AuthenticatedUser user) {
+            return user;
         }
 
-        void optional(@CurrentUser(required = false) AuthenticatedUser user) {
-            // used only for its parameter metadata
+        AuthenticatedUser optional(@CurrentUser(required = false) AuthenticatedUser user) {
+            return user;
         }
 
-        void notAnnotated(AuthenticatedUser user) {
-            // used only for its parameter metadata
+        AuthenticatedUser notAnnotated(AuthenticatedUser user) {
+            return user;
         }
 
-        void wrongType(@CurrentUser String user) {
-            // used only for its parameter metadata
+        String wrongType(@CurrentUser String user) {
+            return user;
         }
     }
 }

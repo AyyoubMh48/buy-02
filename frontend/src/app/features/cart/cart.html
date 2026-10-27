@@ -1,6 +1,6 @@
 <main class="container-xl py-4">
   <h1>Shopping cart</h1>
-  <p *ngIf="busy()" role="status">Updating cart…</p>
+  <output *ngIf="busy()" class="d-block mb-3">Updating cart…</output>
   <div *ngIf="error()" class="alert alert-danger" role="alert">{{ error() }}
     <button class="btn btn-outline-secondary ms-2" (click)="load()" [disabled]="busy()">Reload cart</button>
   </div>
