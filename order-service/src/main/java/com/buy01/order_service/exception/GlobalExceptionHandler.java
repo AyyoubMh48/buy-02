@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.springframework.context.MessageSourceResolvable;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
@@ -100,9 +101,16 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage(), request, null);
     }
 
-    @ExceptionHandler({ConflictException.class, org.springframework.dao.OptimisticLockingFailureException.class, org.springframework.dao.DuplicateKeyException.class})
+    @ExceptionHandler({ConflictException.class, org.springframework.dao.DuplicateKeyException.class})
     public ResponseEntity<ErrorResponse> handleConflict(RuntimeException ex, HttpServletRequest request) {
         return build(HttpStatus.CONFLICT, "Conflict", ex instanceof ConflictException ? ex.getMessage() : "Cart changed concurrently. Reload and retry", request, null);
+    }
+
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> handleConcurrentUpdate(OptimisticLockingFailureException ex,
+            HttpServletRequest request) {
+        return build(HttpStatus.CONFLICT, "Conflict", "The order was modified at the same time, please retry",
+                request, null);
     }
 
     @ExceptionHandler(UpstreamServiceException.class)

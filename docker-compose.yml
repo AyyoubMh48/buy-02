@@ -467,7 +467,7 @@ services:
     restart: unless-stopped
 
     environment:
-      PRODUCT_SERVICE_URL: "http://product-service:8082/products"
+      PRODUCT_SERVICE_URL: "http://product-service"
       ORDERS_SERVICE_URL: "http://order-service:8084/orders"
       SERVER_PORT: "8084"
 
