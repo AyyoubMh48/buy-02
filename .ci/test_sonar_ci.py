@@ -74,3 +74,30 @@ class SonarCITests(unittest.TestCase):
 
     def test_missing_order_coverage_cannot_be_silently_skipped(self):
         self.run_scan(missing_order_coverage=True)
+
+
+class FailureDetailsTests(unittest.TestCase):
+    def test_failed_condition_and_source_issue_are_actionable(self):
+        result = {
+            'scanner_exit_code': 1,
+            'quality_gate': {'status': 'ERROR', 'conditions': [
+                {'status': 'OK', 'metricKey': 'coverage'},
+                {'status': 'ERROR', 'metricKey': 'code_smells',
+                 'actualValue': '2', 'comparator': 'GT', 'errorThreshold': '0'}]},
+            'issues': {'issues': [{'component': 'buy01-gateway:src/Filter.java',
+                                  'line': 42, 'rule': 'java:S123', 'message': 'Fix this condition'}]}}
+        text = '\n'.join(ci.failure_details(result))
+        self.assertIn('`code_smells`: actual **2**, fails when GT **0**', text)
+        self.assertIn('src/Filter.java:42', text)
+        self.assertIn('java:S123', text)
+        self.assertIn('Scanner exit code: 1', text)
+        self.assertNotIn('`coverage`', text)
+
+    def test_success_has_no_failure_details(self):
+        self.assertEqual(ci.failure_details({
+            'scanner_exit_code': 0, 'quality_gate': {'status': 'OK'},
+            'issues': {'issues': [{'message': 'Existing issue'}]}}), [])
+
+    def test_missing_analysis_is_reported(self):
+        self.assertIn('- Analysis results unavailable', ci.failure_details({
+            'scanner_exit_code': 1, 'error': 'Analysis results unavailable'}))
