@@ -16,8 +16,10 @@ import com.buy01.order_service.dtos.external.ProductDetails;
 import com.buy01.order_service.dtos.req.CreateOrderRequest;
 import com.buy01.order_service.dtos.req.OrderFilter;
 import com.buy01.order_service.dtos.req.OrderItemRequest;
+import com.buy01.order_service.dtos.req.PageParams;
 import com.buy01.order_service.dtos.req.UpdateOrderStatusRequest;
 import com.buy01.order_service.dtos.response.OrderResponse;
+import com.buy01.order_service.dtos.response.PageResponse;
 import com.buy01.order_service.dtos.response.ReorderResponse;
 import com.buy01.order_service.exception.BadRequestException;
 import com.buy01.order_service.exception.ConflictException;
@@ -34,7 +36,9 @@ import com.buy01.order_service.repository.OrderSearchRepository;
 import com.buy01.order_service.security.AuthenticatedUser;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderServiceImpl implements OrderService {
@@ -79,29 +83,36 @@ public class OrderServiceImpl implements OrderService {
                 .updatedAt(now)
                 .build();
 
+        productClient.reserveStock(items);
         try {
             return orderMapper.toResponse(orderRepository.insert(order));
         } catch (DuplicateKeyException ex) {
-            // Two identical requests raced past the lookup above; the unique index kept only one.
+            // Two identical requests raced past the lookup above; the unique index kept only one,
+            // and the other request already reserved the stock for it.
+            releaseStock(items, "duplicate request " + idempotencyKey);
             return orderRepository.findByCustomerIdAndIdempotencyKey(user.userId(), idempotencyKey)
                     .map(orderMapper::toResponse)
                     .orElseThrow(() -> ex);
+        } catch (RuntimeException ex) {
+            releaseStock(items, "order that could not be saved");
+            throw ex;
         }
     }
 
     @Override
-    public List<OrderResponse> getMyOrders(OrderFilter filter, AuthenticatedUser user) {
-        return orderSearchRepository.findCustomerOrders(user.userId(), filter).stream()
-                .map(orderMapper::toResponse)
-                .toList();
+    public PageResponse<OrderResponse> getMyOrders(OrderFilter filter, PageParams paging, AuthenticatedUser user) {
+        return PageResponse.of(
+                orderSearchRepository.findCustomerOrders(user.userId(), filter, paging.toPageable()),
+                orderMapper::toResponse);
     }
 
     @Override
-    public List<OrderResponse> getSellerOrders(OrderFilter filter, AuthenticatedUser user) {
+    public PageResponse<OrderResponse> getSellerOrders(OrderFilter filter, PageParams paging,
+            AuthenticatedUser user) {
         requireRole(user, SELLER_ROLE, "Only sellers can view seller orders");
-        return orderSearchRepository.findSellerOrders(user.userId(), filter).stream()
-                .map(order -> orderMapper.toSellerResponse(order, user.userId()))
-                .toList();
+        return PageResponse.of(
+                orderSearchRepository.findSellerOrders(user.userId(), filter, paging.toPageable()),
+                order -> orderMapper.toSellerResponse(order, user.userId()));
     }
 
     @Override
@@ -123,7 +134,10 @@ public class OrderServiceImpl implements OrderService {
             throw new ForbiddenException("Only the customer who placed the order can cancel it");
         }
         changeStatus(order, OrderStatus.CANCELLED, user, "Cancelled by customer");
-        return orderMapper.toResponse(orderRepository.save(order));
+        Order cancelled = orderRepository.save(order);
+        // Only after the save: if it fails (e.g. a concurrent update), the order still holds the stock
+        releaseStock(cancelled.getItems(), "order " + cancelled.getId() + " cancelled by customer");
+        return orderMapper.toResponse(cancelled);
     }
 
     @Override
@@ -142,7 +156,11 @@ public class OrderServiceImpl implements OrderService {
             throw new ForbiddenException("Only a seller with products in this order can update its status");
         }
         changeStatus(order, request.status(), user, request.note());
-        return orderMapper.toSellerResponse(orderRepository.save(order), user.userId());
+        Order updated = orderRepository.save(order);
+        if (updated.getStatus() == OrderStatus.CANCELLED) {
+            releaseStock(updated.getItems(), "order " + updated.getId() + " cancelled by seller");
+        }
+        return orderMapper.toSellerResponse(updated, user.userId());
     }
 
     private void changeStatus(Order order, OrderStatus next, AuthenticatedUser user, String note) {
@@ -189,6 +207,20 @@ public class OrderServiceImpl implements OrderService {
         }
         return new OrderItem(productId, product.ownerId(), product.name(), product.firstImage(), unitPrice,
                 quantity, OrderPricing.lineTotal(unitPrice, quantity));
+    }
+
+    /**
+     * The order's outcome is already decided at this point, so a failure here must not fail the request.
+     * It is logged with everything needed to correct the stock by hand.
+     */
+    private void releaseStock(List<OrderItem> items, String reason) {
+        try {
+            productClient.releaseStock(items);
+        } catch (RuntimeException ex) {
+            log.error("Could not put stock back for {}: {} ({})", reason,
+                    items.stream().map(item -> item.productId() + " x" + item.quantity()).toList(),
+                    ex.getMessage());
+        }
     }
 
     private Order findOrder(String orderId) {
