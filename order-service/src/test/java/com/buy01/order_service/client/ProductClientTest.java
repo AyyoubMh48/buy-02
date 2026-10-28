@@ -98,4 +98,37 @@ class ProductClientTest {
                 .isInstanceOf(UpstreamServiceException.class)
                 .hasMessageContaining("no data");
     }
+    @Test
+    void cartGet_preservesExactPriceAndProductPath() {
+        server.expect(requestTo("http://product-service/products/p1"))
+                .andRespond(withSuccess("""
+                        {"id":"p1","name":"Product","price":10.25,"quantity":7,"images":[]}
+                        """, MediaType.APPLICATION_JSON));
+
+        var product = client.get("p1");
+
+        assertThat(product.price()).isEqualByComparingTo("10.25");
+        assertThat(product.quantity()).isEqualTo(7);
+        server.verify();
+    }
+
+    @Test
+    void cartGet_missingProductRemainsRemovable() {
+        server.expect(requestTo("http://product-service/products/gone")).andRespond(withResourceNotFound());
+
+        assertThat(client.get("gone")).isNull();
+        server.verify();
+    }
+
+    @Test
+    void cartGet_invalidPriceIsRejected() {
+        server.expect(requestTo("http://product-service/products/p1"))
+                .andRespond(withSuccess("""
+                        {"id":"p1","name":"Product","price":-1,"quantity":7,"images":[]}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.get("p1")).isInstanceOf(UpstreamServiceException.class);
+        server.verify();
+    }
+
 }

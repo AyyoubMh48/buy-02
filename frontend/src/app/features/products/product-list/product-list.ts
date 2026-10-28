@@ -2,6 +2,9 @@ import { Component, OnInit, signal, computed, HostListener } from '@angular/core
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ProductService } from '../../../core/services/product';
+import { CartService } from '../../../core/services/cart';
+import { AuthService } from '../../../core/services/auth';
+import { Router } from '@angular/router';
 import { Product } from '../../../core/models/product';
 
 @Component({
@@ -30,7 +33,11 @@ export class ProductList implements OnInit {
   readonly toastMessage = signal<string>('');
   private toastTimeout: ReturnType<typeof setTimeout> | undefined;
 
-  constructor(private readonly productService: ProductService) {}
+  readonly adding = signal(false);
+  constructor(private readonly productService: ProductService,
+              private readonly cartService: CartService,
+              public readonly auth: AuthService,
+              private readonly router: Router) {}
 
   ngOnInit(): void {
     this.loadProducts();
@@ -107,7 +114,14 @@ export class ProductList implements OnInit {
   }
 
   addToOrder(product: Product): void {
-    this.showToast(`Item "${product.name}" added to order request.`);
+    if (!this.auth.isLoggedIn()) { this.router.navigate(['/login']); return; }
+    if (!this.auth.hasRole('CLIENT')) { this.showToast('Only clients can add items to a cart.'); return; }
+    if (!product.id || product.quantity < 1 || this.adding()) return;
+    this.adding.set(true);
+    this.cartService.add(product.id).subscribe({
+      next: () => { this.adding.set(false); this.showToast(`Item "${product.name}" added to cart.`); },
+      error: e => { this.adding.set(false); this.showToast(e.error?.message || 'Unable to add to cart. Please retry.'); }
+    });
   }
 
   showToast(msg: string): void {

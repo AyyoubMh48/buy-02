@@ -27,6 +27,7 @@ import jakarta.servlet.http.HttpServletRequest;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final String BAD_REQUEST = "Bad Request";
     private static final String VALIDATION_FAILED = "Validation Failed";
     private static final String INVALID_INPUT = "Invalid input data";
     private static final String DEFAULT_FIELD_MESSAGE = "invalid value";
@@ -70,19 +71,19 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleUnreadableBody(HttpMessageNotReadableException ex,
             HttpServletRequest request) {
-        return build(HttpStatus.BAD_REQUEST, "Bad Request", "Malformed request body", request, null);
+        return build(HttpStatus.BAD_REQUEST, BAD_REQUEST, "Malformed request body", request, null);
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex,
             HttpServletRequest request) {
-        return build(HttpStatus.BAD_REQUEST, "Bad Request", "Invalid value for parameter " + ex.getName(),
+        return build(HttpStatus.BAD_REQUEST, BAD_REQUEST, "Invalid value for parameter " + ex.getName(),
                 request, null);
     }
 
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<ErrorResponse> handleBadRequest(BadRequestException ex, HttpServletRequest request) {
-        return build(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request, null);
+        return build(HttpStatus.BAD_REQUEST, BAD_REQUEST, ex.getMessage(), request, null);
     }
 
     @ExceptionHandler(UnauthorizedException.class)
@@ -100,9 +101,9 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage(), request, null);
     }
 
-    @ExceptionHandler(ConflictException.class)
-    public ResponseEntity<ErrorResponse> handleConflict(ConflictException ex, HttpServletRequest request) {
-        return build(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request, null);
+    @ExceptionHandler({ConflictException.class, org.springframework.dao.DuplicateKeyException.class})
+    public ResponseEntity<ErrorResponse> handleConflict(RuntimeException ex, HttpServletRequest request) {
+        return build(HttpStatus.CONFLICT, "Conflict", ex instanceof ConflictException ? ex.getMessage() : "Cart changed concurrently. Reload and retry", request, null);
     }
 
     @ExceptionHandler(OptimisticLockingFailureException.class)
