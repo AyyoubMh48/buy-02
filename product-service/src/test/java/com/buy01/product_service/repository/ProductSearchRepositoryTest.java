@@ -69,7 +69,7 @@ class ProductSearchRepositoryTest {
         assertThat(alternatives).hasSize(3);
         assertThat(alternatives.get(0)).containsEntry("category", "uncategorized");
         assertThat(alternatives.get(1)).containsEntry("category", null);
-        assertThat(alternatives.get(2).get("category").toString()).isEqualTo("^\\s*$");
+        assertThat(alternatives.get(2).get("category")).hasToString("^\\s*$");
     }
 
     @ParameterizedTest

@@ -161,7 +161,7 @@
   </form>
 
   <!-- Loading State -->
-  <p *ngIf="loading()" role="status" class="visually-hidden">Loading products…</p>
+  <output *ngIf="loading()" class="visually-hidden">Loading products…</output>
   <div *ngIf="loading()" class="atelier-gallery-grid mb-4">
     <div class="atelier-grid-tile" *ngFor="let placeholder of [1, 2, 3, 4, 5, 6]">
       <div class="buy-card p-0 h-100 overflow-hidden">
@@ -428,8 +428,8 @@
 
   <!-- Toast Notification Container -->
   <div class="buy-toast-container" *ngIf="toastMessage()">
-    <div class="buy-toast" role="status" aria-live="polite">
+    <output class="buy-toast" aria-live="polite">
       <span>{{ toastMessage() }}</span>
-    </div>
+    </output>
   </div>
 </div>

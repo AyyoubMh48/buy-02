@@ -19,6 +19,9 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ProductSearchRepository {
 
+    private static final String CATEGORY_FIELD = "category";
+    private static final String PRICE_FIELD = "price";
+
     private final MongoTemplate mongoTemplate;
 
     public Page<Product> search(ProductSearchRequest filters) {
@@ -39,15 +42,15 @@ public class ProductSearchRepository {
             if ("uncategorized".equals(filters.category())) {
                 // MongoDB's null match also includes legacy documents with no category field.
                 query.addCriteria(new Criteria().orOperator(
-                        Criteria.where("category").is("uncategorized"),
-                        Criteria.where("category").is(null),
-                        Criteria.where("category").regex("^\\s*$")));
+                        Criteria.where(CATEGORY_FIELD).is("uncategorized"),
+                        Criteria.where(CATEGORY_FIELD).is(null),
+                        Criteria.where(CATEGORY_FIELD).regex("^\\s*$")));
             } else {
-                query.addCriteria(Criteria.where("category").is(filters.category()));
+                query.addCriteria(Criteria.where(CATEGORY_FIELD).is(filters.category()));
             }
         }
         if (filters.minPrice() != null || filters.maxPrice() != null) {
-            Criteria price = Criteria.where("price");
+            Criteria price = Criteria.where(PRICE_FIELD);
             // Products currently store prices as doubles; query the same numeric type.
             if (filters.minPrice() != null) {
                 price.gte(filters.minPrice().doubleValue());
@@ -65,8 +68,8 @@ public class ProductSearchRepository {
 
     private Sort sortBy(String sort) {
         Sort primary = switch (sort) {
-            case "price-asc" -> Sort.by("price").ascending();
-            case "price-desc" -> Sort.by("price").descending();
+            case "price-asc" -> Sort.by(PRICE_FIELD).ascending();
+            case "price-desc" -> Sort.by(PRICE_FIELD).descending();
             case "name-asc" -> Sort.by("name").ascending();
             default -> Sort.by("createdAt").descending();
         };
