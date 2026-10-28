@@ -279,6 +279,35 @@ For a full failure, inspect the **first real error** in Jenkins Console Output, 
 
 See [.ci/README.md](.ci/README.md) for automatic scans, retained reports, required reviews, and the prepared GitHub branch-protection rule. Protected branches still require a qualifying GitHub plan for this private repository.
 
+## Product categories
+
+Product create/update requests accept an optional `category` string of at most 80 characters. Categories are trimmed and stored in lowercase (for example, `" Furniture "` becomes `"furniture"`). New products without a category, and existing uncategorized products in API responses, use `"uncategorized"`. An update that omits `category` preserves the existing value. Existing MongoDB documents do not require a migration for this change.
+
+Sellers can edit the category in the product form. Category filtering is supported by the product search endpoint below.
+
+## Product search API
+
+`GET /api/products/search` is a public, read-only endpoint. The existing product list and product-by-ID endpoints retain their response formats for cart/order compatibility.
+
+Example:
+
+```http
+GET /api/products/search?q=phone&category=electronics&minPrice=500&maxPrice=3000&inStock=true&sort=price-asc&page=0&size=12
+```
+
+| Parameter | Behavior |
+| --- | --- |
+| `q` | Optional keywords in name/description, up to 200 characters. MongoDB text search matches words, not arbitrary substrings. The text index uses language `none` (no stemming or stop-word removal). Multiple terms use MongoDB text-search semantics, including OR by default. |
+| `category` | Optional exact category, trimmed and lowercased. `uncategorized` includes legacy missing/blank values. |
+| `minPrice`, `maxPrice` | Optional inclusive bounds, nonnegative with up to 12 integer digits and 2 decimal places. Minimum must not exceed maximum. |
+| `inStock` | `true` limits results to positive stock; omitted/`false` includes all stock levels. |
+| `sort` | `newest` (default), `featured` (alias for newest), `price-asc`, `price-desc`, or `name-asc`. All include an ID tie-breaker. Name sorting uses MongoDB's default binary ordering. |
+| `page`, `size` | Zero-based page (0–10000, default 0), page size (1–100, default 12). |
+
+The response contains `content` (product responses), `totalElements`, `totalPages`, `page`, and `size`. Counts apply to all matches before pagination. No matches produce an empty list and zero total pages; a page beyond the last page is empty and retains the matching totals. Invalid filters return HTTP 400 using the existing validation error response.
+
+Spring Data creates the combined name/description text index and category/price, price, and creation-date indexes on startup when `spring.data.mongodb.auto-index-creation=true` (already configured). MongoDB must be available and its application user must have permission to create indexes. These indexes support the basic search paths; query plans for combined filters/sorts should be checked against representative data. The Angular catalog uses this endpoint for search, category/price/stock filters, sorting, and pagination (12, 24, or 48 items per page). Filter changes reset the page and wait 300 ms before searching; newer changes cancel pending or in-flight requests. Invalid price ranges are shown inline and do not send requests. The existing quick view and add-to-cart actions remain available.
+
 ## Project status
 
 The setup and pipeline above describe the **intended reproducible workflow**. Verify the live Jenkins build, quality-gate results, deployment, and application functionality before describing a release as successful.
