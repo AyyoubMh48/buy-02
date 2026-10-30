@@ -398,8 +398,9 @@ class OrderServiceImplTest {
         @Test
         void getSellerOrders_requiresSellerRole() {
             var filter = OrderFilter.none();
+            var paging = PageParams.first();
 
-            assertThatThrownBy(() -> service.getSellerOrders(filter, PageParams.first(), CUSTOMER))
+            assertThatThrownBy(() -> service.getSellerOrders(filter, paging, CUSTOMER))
                     .isInstanceOf(ForbiddenException.class);
             verifyNoInteractions(orderSearchRepository);
         }

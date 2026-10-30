@@ -68,8 +68,9 @@ class StockServiceTest {
         when(productRepository.findById("p2"))
                 .thenReturn(Optional.of(Product.builder().id("p2").name("Cable").quantity(1).build()));
 
-        assertThatThrownBy(() -> service.reserve(List.of(
-                new StockRequest.Item("p1", 2), new StockRequest.Item("p2", 5))))
+        List<StockRequest.Item> items = List.of(new StockRequest.Item("p1", 2), new StockRequest.Item("p2", 5));
+
+        assertThatThrownBy(() -> service.reserve(items))
                 .isInstanceOf(ConflictException.class)
                 .hasMessage("Not enough stock for Cable: 1 available");
 
@@ -86,7 +87,9 @@ class StockServiceTest {
         stockAvailable("missing", false);
         when(productRepository.findById("missing")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.reserve(List.of(new StockRequest.Item("missing", 1))))
+        List<StockRequest.Item> items = List.of(new StockRequest.Item("missing", 1));
+
+        assertThatThrownBy(() -> service.reserve(items))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage("Product not found: missing");
     }
