@@ -20,5 +20,12 @@ public record CreateOrderRequest(
         @Valid
         ShippingAddressDto shippingAddress,
 
-        PaymentMethod paymentMethod
-) {}
+        PaymentMethod paymentMethod,
+
+        @jakarta.validation.constraints.DecimalMin("0.00")
+        java.math.BigDecimal expectedTotal
+) {
+    public CreateOrderRequest(List<OrderItemRequest> items, ShippingAddressDto shippingAddress, PaymentMethod paymentMethod) {
+        this(items, shippingAddress, paymentMethod, null);
+    }
+}

@@ -33,6 +33,7 @@ public class SecurityConfig {
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
 
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/cart", "/cart/**", "/api/cart", "/api/cart/**").hasRole("CLIENT")
                         .anyRequest().permitAll()
                 )
 

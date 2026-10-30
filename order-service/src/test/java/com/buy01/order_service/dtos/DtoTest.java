@@ -42,7 +42,8 @@ class DtoTest {
         history.add(new StatusChangeResponse(null, null, null, null));
 
         assertThat(response.statusHistory()).isEmpty();
-        assertThatThrownBy(() -> response.items().add(null)).isInstanceOf(UnsupportedOperationException.class);
+        var items = response.items();
+        assertThatThrownBy(() -> items.add(null)).isInstanceOf(UnsupportedOperationException.class);
     }
 
     @Test
