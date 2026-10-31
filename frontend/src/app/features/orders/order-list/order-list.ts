@@ -1,7 +1,7 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ORDER_STATUSES, OrderFilters, OrderPage } from '../../../core/models/order';
 import { OrderScope, OrderService } from '../../../core/services/order';
 import { shortId, statusBadge, statusLabel } from '../order-status';
@@ -12,7 +12,7 @@ export const PAGE_SIZE = 10;
 @Component({
   selector: 'app-order-list',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './order-list.html',
 })
 export class OrderList implements OnInit {

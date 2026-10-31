@@ -50,10 +50,14 @@
         <span [class]="statusBadge(order.status)">{{ statusLabel(order.status) }}</span>
       </div>
       <p class="mb-1 mt-2">{{ productNames(order.items) }}</p>
-      <p class="mb-0 fw-semibold">
-        {{ order.totalItems }} {{ order.totalItems === 1 ? 'item' : 'items' }} ·
-        {{ order.totalAmount | currency: 'USD' }}
-      </p>
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <p class="mb-0 fw-semibold">
+          {{ order.totalItems }} {{ order.totalItems === 1 ? 'item' : 'items' }} ·
+          {{ order.totalAmount | currency: 'USD' }}
+        </p>
+        <a class="btn btn-outline-primary btn-sm" [routerLink]="['/orders', order.id]"
+          [attr.aria-label]="'View order ' + shortId(order.id)">View details</a>
+      </div>
     </article>
 
     <nav *ngIf="page.totalPages > 1" class="d-flex justify-content-between align-items-center mt-3" aria-label="Order pages">

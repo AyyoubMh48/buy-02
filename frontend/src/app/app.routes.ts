@@ -40,6 +40,11 @@ export const routes: Routes = [
     data: { scope: 'my' }
   },
   {
+    path: 'orders/:id',
+    loadComponent: () => import('./features/orders/order-details/order-details').then(m => m.OrderDetails),
+    canActivate: [authGuard]
+  },
+  {
     path: 'seller/orders',
     loadComponent: () => import('./features/orders/order-list/order-list').then(m => m.OrderList),
     canActivate: [authGuard, roleGuard('SELLER')],
