@@ -4,7 +4,7 @@ import { Order } from '../../../core/models/order';
 import { AuthService } from '../../../core/services/auth';
 import { CartService } from '../../../core/services/cart';
 import { OrderService } from '../../../core/services/order';
-import { OrderDetails } from './order-details';
+import { NOTE_MAX, OrderDetails } from './order-details';
 
 const sampleOrder = (overrides: Partial<Order> = {}): Order => ({
   id: 'order-000123',
@@ -27,7 +27,12 @@ const sampleOrder = (overrides: Partial<Order> = {}): Order => ({
 });
 
 describe('OrderDetails', () => {
-  let api: { get: ReturnType<typeof vi.fn>; cancel: ReturnType<typeof vi.fn>; reorder: ReturnType<typeof vi.fn> };
+  let api: {
+    get: ReturnType<typeof vi.fn>;
+    cancel: ReturnType<typeof vi.fn>;
+    reorder: ReturnType<typeof vi.fn>;
+    updateStatus: ReturnType<typeof vi.fn>;
+  };
   let cart: { add: ReturnType<typeof vi.fn> };
 
   const create = (role: 'CLIENT' | 'SELLER' = 'CLIENT', id: string | null = 'order-000123') =>
@@ -42,6 +47,7 @@ describe('OrderDetails', () => {
     api = {
       get: vi.fn(() => of(sampleOrder())),
       cancel: vi.fn(() => of(sampleOrder({ status: 'CANCELLED' }))),
+      updateStatus: vi.fn(() => of(sampleOrder({ status: 'SHIPPED' }))),
       reorder: vi.fn(() =>
         of({ sourceOrderId: 'order-000123', items: [{ productId: 'p1', quantity: 2 }, { productId: 'p2', quantity: 1 }] }),
       ),
@@ -162,5 +168,50 @@ describe('OrderDetails', () => {
     page.reorder();
     expect(api.cancel).not.toHaveBeenCalled();
     expect(api.reorder).not.toHaveBeenCalled();
+  });
+
+  it('offers sellers only the valid next statuses', () => {
+    const seller = create('SELLER');
+    expect(seller.nextStatuses(sampleOrder({ status: 'CONFIRMED' }))).toEqual(['SHIPPED', 'CANCELLED']);
+    expect(seller.nextStatuses(sampleOrder({ status: 'DELIVERED' }))).toEqual([]);
+    expect(create().nextStatuses(sampleOrder({ status: 'PENDING' }))).toEqual([]);
+  });
+
+  it('updates the status with the note and resets the form', () => {
+    const page = create('SELLER');
+    page.nextStatus = 'SHIPPED';
+    page.note = 'tracking 42';
+    page.updateStatus();
+    expect(api.updateStatus).toHaveBeenCalledWith('order-000123', 'SHIPPED', 'tracking 42');
+    expect(page.order()?.status).toBe('SHIPPED');
+    expect(page.nextStatus).toBe('');
+    expect(page.note).toBe('');
+    expect(page.toast()).toBe('Order marked as shipped.');
+    page.ngOnDestroy();
+  });
+
+  it('does nothing without a chosen status, and rejects a note that is too long', () => {
+    const page = create('SELLER');
+    page.updateStatus();
+    expect(api.updateStatus).not.toHaveBeenCalled();
+
+    page.nextStatus = 'SHIPPED';
+    page.note = 'x'.repeat(NOTE_MAX + 1);
+    page.updateStatus();
+    expect(api.updateStatus).not.toHaveBeenCalled();
+    expect(page.error()).toBe(`The note must be at most ${NOTE_MAX} characters.`);
+  });
+
+  it('shows why a status change was refused', () => {
+    api.updateStatus.mockReturnValue(throwError(() => ({ status: 409, error: { message: 'Cannot change order status from SHIPPED to CONFIRMED' } })));
+    const page = create('SELLER');
+    page.nextStatus = 'CONFIRMED';
+    page.updateStatus();
+    expect(page.error()).toBe('Cannot change order status from SHIPPED to CONFIRMED');
+    expect(page.busy()).toBe(false);
+
+    api.updateStatus.mockReturnValue(throwError(() => ({ status: 0 })));
+    page.updateStatus();
+    expect(page.error()).toBe('The status could not be updated. Please retry.');
   });
 });

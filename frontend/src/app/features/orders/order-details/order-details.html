@@ -32,6 +32,33 @@
       <output *ngIf="busy()" class="ms-auto small">Working…</output>
     </section>
 
+    <section *ngIf="seller" class="buy-card p-3 mb-4" aria-labelledby="status-title">
+      <h2 id="status-title" class="h5">Update status</h2>
+      <p *ngIf="!nextStatuses(o).length" class="mb-0 text-muted">
+        This order is {{ statusLabel(o.status).toLowerCase() }}; its status can no longer change.
+      </p>
+      <form *ngIf="nextStatuses(o).length" class="row g-3 align-items-end" (ngSubmit)="updateStatus()">
+        <div class="col-12 col-md-3">
+          <label for="next-status" class="form-label">New status</label>
+          <select id="next-status" name="nextStatus" class="form-select" required [(ngModel)]="nextStatus" [disabled]="busy()">
+            <option value="" disabled>Choose…</option>
+            <option *ngFor="let status of nextStatuses(o)" [value]="status">{{ statusLabel(status) }}</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-6">
+          <label for="status-note" class="form-label">Note for the customer (optional)</label>
+          <input id="status-note" name="note" class="form-control" [maxlength]="noteMax"
+            placeholder="e.g. tracking number" [(ngModel)]="note" [disabled]="busy()">
+        </div>
+        <div class="col-12 col-md-3">
+          <button type="submit" class="btn btn-primary w-100" [disabled]="busy() || !nextStatus">Update status</button>
+        </div>
+      </form>
+      <p *ngIf="nextStatuses(o).length" class="small text-muted mt-2 mb-0">
+        The status applies to the whole order, including other sellers' products.
+      </p>
+    </section>
+
     <div class="row g-4">
       <section class="col-12 col-lg-8" aria-labelledby="items-title">
         <div class="buy-card p-3">
