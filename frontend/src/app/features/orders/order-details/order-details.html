@@ -16,6 +16,22 @@
       <span [class]="statusBadge(o.status)">{{ statusLabel(o.status) }}</span>
     </header>
 
+    <section *ngIf="!seller" class="buy-card p-3 mb-4 d-flex flex-wrap align-items-center gap-2" aria-label="Order actions">
+      <ng-container *ngIf="canCancel(o)">
+        <button *ngIf="!confirmingCancel()" class="btn btn-outline-danger" (click)="confirmingCancel.set(true)" [disabled]="busy()">
+          Cancel order
+        </button>
+        <span *ngIf="confirmingCancel()" class="d-flex flex-wrap align-items-center gap-2" role="group" aria-label="Confirm cancellation">
+          <span>Cancel this order?</span>
+          <button class="btn btn-danger" (click)="cancel()" [disabled]="busy()">Yes, cancel it</button>
+          <button class="btn btn-outline-secondary" (click)="confirmingCancel.set(false)" [disabled]="busy()">Keep order</button>
+        </span>
+      </ng-container>
+      <button class="btn btn-primary" (click)="reorder()" [disabled]="busy()">Order again</button>
+      <a *ngIf="reordered()" class="btn btn-outline-primary" routerLink="/cart">Go to cart</a>
+      <output *ngIf="busy()" class="ms-auto small">Working…</output>
+    </section>
+
     <div class="row g-4">
       <section class="col-12 col-lg-8" aria-labelledby="items-title">
         <div class="buy-card p-3">
@@ -77,4 +93,8 @@
       </aside>
     </div>
   </ng-container>
+
+  <div class="buy-toast-container" *ngIf="toast()">
+    <output class="buy-toast" aria-live="polite">{{ toast() }}</output>
+  </div>
 </main>
