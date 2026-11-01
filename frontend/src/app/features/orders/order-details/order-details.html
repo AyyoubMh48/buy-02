@@ -74,7 +74,10 @@
                   <td>
                     <div class="d-flex align-items-center gap-2">
                       <img *ngIf="item.imageUrl" [src]="item.imageUrl" [alt]="item.productName" width="48" height="48" style="object-fit: cover">
-                      <span>{{ item.productName }}</span>
+                      <span>
+                        {{ item.productName }}
+                        <span *ngIf="item.category" class="d-block small text-muted">{{ item.category }}</span>
+                      </span>
                     </div>
                   </td>
                   <td class="text-end">{{ item.unitPrice | currency: 'USD' }}</td>

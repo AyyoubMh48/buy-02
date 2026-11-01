@@ -416,7 +416,7 @@ class OrderControllerTest {
 
     private static OrderResponse order(OrderStatus status) {
         Instant now = Instant.parse("2026-01-15T10:00:00Z");
-        var item = new OrderItemResponse("product-1", SELLER_ID, "Headphones", "https://img/1.png",
+        var item = new OrderItemResponse("product-1", SELLER_ID, "Headphones", "audio", "https://img/1.png",
                 new BigDecimal("20.00"), 2, new BigDecimal("40.00"));
         var address = new ShippingAddressDto("Jane Doe", "0600000000", "1 Main St", "Casablanca", "20000", "Morocco");
         return new OrderResponse(ORDER_ID, CUSTOMER_ID, status, List.of(item), address,

@@ -46,7 +46,7 @@ class ProductClientTest {
                 .andRespond(withSuccess("""
                         {"id": "p1", "name": "Headphones", "description": "ignored", "price": 19.99,
                          "ownerId": "seller-a", "images": ["https://img/1.png"], "mediaIds": ["m1"],
-                         "quantity": 7}
+                         "quantity": 7, "category": "audio"}
                         """, MediaType.APPLICATION_JSON));
 
         var product = client.getProduct("p1");
@@ -56,6 +56,7 @@ class ProductClientTest {
         assertThat(product.ownerId()).isEqualTo("seller-a");
         assertThat(product.firstImage()).isEqualTo("https://img/1.png");
         assertThat(product.quantity()).isEqualTo(7);
+        assertThat(product.categoryOrDefault()).isEqualTo("audio");
         server.verify();
     }
 
@@ -107,8 +108,8 @@ class ProductClientTest {
     }
 
     private static final List<OrderItem> ITEMS = List.of(
-            new OrderItem("p1", "seller-a", "Headphones", null, new BigDecimal("20.00"), 2, new BigDecimal("40.00")),
-            new OrderItem("p2", "seller-b", "Cable", null, new BigDecimal("5.00"), 1, new BigDecimal("5.00")));
+            new OrderItem("p1", "seller-a", "Headphones", "audio", null, new BigDecimal("20.00"), 2, new BigDecimal("40.00")),
+            new OrderItem("p2", "seller-b", "Cable", "accessories", null, new BigDecimal("5.00"), 1, new BigDecimal("5.00")));
 
     @Test
     void reserveStock_postsProductIdsAndQuantities() {

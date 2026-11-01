@@ -11,7 +11,7 @@ const sampleOrder = (overrides: Partial<Order> = {}): Order => ({
   customerId: 'customer-1',
   status: 'PENDING',
   items: [
-    { productId: 'p1', sellerId: 's1', productName: 'Lamp', imageUrl: null, unitPrice: 10, quantity: 2, lineTotal: 20 },
+    { productId: 'p1', sellerId: 's1', productName: 'Lamp', category: 'lighting', imageUrl: null, unitPrice: 10, quantity: 2, lineTotal: 20 },
   ],
   shippingAddress: { fullName: 'Sara', phone: '06', street: '1 Main St', city: 'Rabat', postalCode: '10000', country: 'Morocco' },
   paymentMethod: 'CASH_ON_DELIVERY',
