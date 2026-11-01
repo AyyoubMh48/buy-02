@@ -295,7 +295,7 @@ The server always answers errors with the same JSON shape, so `error.message` ca
 - Bootstrap grid: filters stack on phones and sit on one row on desktop; on the details page the address and timeline move under the products on small screens; the products table scrolls horizontally if needed.
 - Every form field has a `<label>`; the filter form has `role="search"`; paging is a `<nav>` with a label.
 - Loading and toast messages use `<output>` / `aria-live="polite"`, so screen readers announce them.
-- "View details" links have an `aria-label` with the order reference; the cancel confirmation is a labelled group.
+- "View details" links have an `aria-label` with the order reference; the cancel confirmation is a `<fieldset>` whose `<legend>` asks the question.
 - Status is shown as text inside the badge, not by colour alone.
 
 ---
