@@ -93,9 +93,9 @@ class OrderServiceImplTest {
         void products() {
             when(productClient.getProduct("headphones"))
                     .thenReturn(new ProductDetails("headphones", "Headphones", 19.99, "seller-a",
-                            List.of("https://img/h1.png", "https://img/h2.png"), 10));
+                            List.of("https://img/h1.png", "https://img/h2.png"), 10, "audio"));
             when(productClient.getProduct("cable"))
-                    .thenReturn(new ProductDetails("cable", "USB Cable", 4.5, "seller-b", null, 50));
+                    .thenReturn(new ProductDetails("cable", "USB Cable", 4.5, "seller-b", null, 50, null));
             when(orderRepository.findByCustomerIdAndIdempotencyKey("customer-1", KEY)).thenReturn(Optional.empty());
         }
 
@@ -113,6 +113,7 @@ class OrderServiceImplTest {
             assertThat(response.items()).satisfiesExactly(
                     headphones -> {
                         assertThat(headphones.productName()).isEqualTo("Headphones");
+                        assertThat(headphones.category()).isEqualTo("audio");
                         assertThat(headphones.sellerId()).isEqualTo("seller-a");
                         assertThat(headphones.imageUrl()).isEqualTo("https://img/h1.png");
                         assertThat(headphones.unitPrice()).isEqualTo(new BigDecimal("19.99"));
@@ -120,6 +121,7 @@ class OrderServiceImplTest {
                     },
                     cable -> {
                         assertThat(cable.imageUrl()).isNull();
+                        assertThat(cable.category()).isEqualTo("uncategorized");
                         assertThat(cable.unitPrice()).isEqualTo(new BigDecimal("4.50"));
                         assertThat(cable.lineTotal()).isEqualTo(new BigDecimal("13.50"));
                     });
@@ -160,7 +162,7 @@ class OrderServiceImplTest {
         @Test
         void sellerIdsAreDistinct() {
             when(productClient.getProduct("case"))
-                    .thenReturn(new ProductDetails("case", "Case", 5, "seller-a", List.of(), 5));
+                    .thenReturn(new ProductDetails("case", "Case", 5, "seller-a", List.of(), 5, "accessories"));
 
             service.createOrder(request(new OrderItemRequest("headphones", 1), new OrderItemRequest("case", 1)),
                     KEY, CUSTOMER);
@@ -314,7 +316,7 @@ class OrderServiceImplTest {
         @Test
         void rejectsIncompleteProductData() {
             when(productClient.getProduct("broken"))
-                    .thenReturn(new ProductDetails("broken", null, 1, "seller-a", List.of(), 5));
+                    .thenReturn(new ProductDetails("broken", null, 1, "seller-a", List.of(), 5, null));
             var request = request(new OrderItemRequest("broken", 1));
 
             assertThatThrownBy(() -> service.createOrder(request, KEY, CUSTOMER))
@@ -324,7 +326,7 @@ class OrderServiceImplTest {
         @Test
         void rejectsProductWithoutSeller() {
             when(productClient.getProduct("orphan"))
-                    .thenReturn(new ProductDetails("orphan", "Orphan", 1, null, List.of(), 5));
+                    .thenReturn(new ProductDetails("orphan", "Orphan", 1, null, List.of(), 5, null));
             var request = request(new OrderItemRequest("orphan", 1));
 
             assertThatThrownBy(() -> service.createOrder(request, KEY, CUSTOMER))
@@ -334,7 +336,7 @@ class OrderServiceImplTest {
         @Test
         void rejectsInvalidProductPrice() {
             when(productClient.getProduct("negative"))
-                    .thenReturn(new ProductDetails("negative", "Negative", -1, "seller-a", List.of(), 5));
+                    .thenReturn(new ProductDetails("negative", "Negative", -1, "seller-a", List.of(), 5, null));
             var request = request(new OrderItemRequest("negative", 1));
 
             assertThatThrownBy(() -> service.createOrder(request, KEY, CUSTOMER))
@@ -665,9 +667,9 @@ class OrderServiceImplTest {
     private static Order order(OrderStatus status) {
         Instant placed = Instant.parse("2026-02-01T09:00:00Z");
         List<OrderItem> items = List.of(
-                new OrderItem("headphones", "seller-a", "Headphones", null, new BigDecimal("20.00"), 2,
+                new OrderItem("headphones", "seller-a", "Headphones", "audio", null, new BigDecimal("20.00"), 2,
                         new BigDecimal("40.00")),
-                new OrderItem("cable", "seller-b", "USB Cable", null, new BigDecimal("5.00"), 1,
+                new OrderItem("cable", "seller-b", "USB Cable", "accessories", null, new BigDecimal("5.00"), 1,
                         new BigDecimal("5.00")));
         return Order.builder()
                 .id("order-1")

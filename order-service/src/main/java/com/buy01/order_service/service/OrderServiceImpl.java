@@ -205,7 +205,8 @@ public class OrderServiceImpl implements OrderService {
         } catch (IllegalArgumentException ex) {
             throw new UpstreamServiceException("Product Service returned an invalid price for product " + productId);
         }
-        return new OrderItem(productId, product.ownerId(), product.name(), product.firstImage(), unitPrice,
+        return new OrderItem(productId, product.ownerId(), product.name(), product.categoryOrDefault(),
+                product.firstImage(), unitPrice,
                 quantity, OrderPricing.lineTotal(unitPrice, quantity));
     }
 

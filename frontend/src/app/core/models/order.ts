@@ -26,6 +26,8 @@ export interface OrderItem {
   productId: string;
   sellerId: string;
   productName: string;
+  /** null for orders placed before categories were recorded. */
+  category: string | null;
   imageUrl: string | null;
   unitPrice: number;
   quantity: number;

@@ -33,6 +33,7 @@ This document explains:
 11. [Configuration and running](#11-configuration-and-running)
 12. [Testing and quality gates](#12-testing-and-quality-gates)
 13. [Known limitations](#13-known-limitations)
+14. [Analytics contract (proposal)](#14-analytics-contract-proposal)
 
 ---
 
@@ -167,7 +168,7 @@ Each concept below solves a concrete problem. The problem comes first.
 
 **Problem:** a seller changes a price or deletes a product after it was ordered. The customer's past order must not change.
 
-**Solution:** when an order is created, each line copies the product's **name, image, unit price and seller** (`OrderItem`). The order never reads the product again. Only ids and quantities come from the client; everything else comes from Product Service, so a customer can't choose their own price.
+**Solution:** when an order is created, each line copies the product's **name, category, image, unit price and seller** (`OrderItem`). The order never reads the product again. Only ids and quantities come from the client; everything else comes from Product Service, so a customer can't choose their own price.
 
 ### 4.2 Exact money with `BigDecimal`
 
@@ -272,10 +273,10 @@ The service owns three MongoDB collections in `order-mongodb`.
   "idempotencyKey": "3f2b8c1e-9d4a-4c7e-b1f0-2a6d8e5c7b90",
   "status": "CONFIRMED",
   "items": [
-    { "productId": "p1", "sellerId": "seller-a", "productName": "Headphones",
+    { "productId": "p1", "sellerId": "seller-a", "productName": "Headphones", "category": "audio",
       "imageUrl": "https://.../h1.png", "unitPrice": NumberDecimal("20.00"),
       "quantity": 2, "lineTotal": NumberDecimal("40.00") },
-    { "productId": "p2", "sellerId": "seller-b", "productName": "USB Cable",
+    { "productId": "p2", "sellerId": "seller-b", "productName": "USB Cable", "category": "accessories",
       "imageUrl": null, "unitPrice": NumberDecimal("5.00"),
       "quantity": 1, "lineTotal": NumberDecimal("5.00") }
   ],
@@ -730,3 +731,64 @@ The frontend build also enforces 80 % statements, branches, functions and lines.
 | Date filters use **UTC days** | an order at 00:30 Morocco time can appear under the previous day | accept the client's time zone |
 | No tests against a **real MongoDB** | indexes and queries are checked through generated queries | Testcontainers |
 | No `product-service` registered in Eureka → **500** instead of 502 | wrong status while Product Service is starting | map `IllegalStateException` in `ProductClient` |
+
+---
+
+## 14. Analytics contract (proposal)
+
+Customer and seller analytics (Task: Ayoub) are computed from orders, so they depend on the data this service stores. This section is the proposed contract between the two parts; it is open for discussion.
+
+### Data available per order
+
+| Level | Fields |
+|---|---|
+| order | `id`, `customerId`, `status`, `createdAt`, `totalItems`, `totalAmount`, `sellerIds` |
+| item (`items[]`) | `productId`, `productName`, `category`, `sellerId`, `unitPrice`, `quantity`, `lineTotal` |
+
+- Prices, names and **categories are snapshots** taken when the order was placed, so analytics reflect what was actually bought, even if the product changes later.
+- `category` is recorded for orders placed from this version on. Older orders have no category and should be counted as `uncategorized`, the same name Product Service uses.
+- Amounts are exact decimals (`DECIMAL128`); sums should stay in `BigDecimal`.
+
+### Which orders count
+
+| Rule | Proposal |
+|---|---|
+| Cancelled orders | **excluded** from every amount and count (Task: "excluding cancelled orders") |
+| Pending, confirmed, shipped, delivered | included |
+| Seller figures | only the seller's own lines (`items.sellerId == seller`), never the whole order total |
+| Dates | `createdAt`, UTC, like the order filters |
+
+### Proposed endpoints
+
+Served by the Order Service, which owns the `orders` collection, behind the same gateway route and identity headers. Each user only sees their own figures.
+
+`GET /orders/analytics/customer` — `CLIENT`, own orders:
+
+```json
+{
+  "orderCount": 7,
+  "totalSpent": 412.50,
+  "topProducts":   [ { "productId": "p1", "productName": "Headphones", "quantity": 5, "amount": 99.95 } ],
+  "topCategories": [ { "category": "audio", "quantity": 8, "amount": 160.00 } ]
+}
+```
+
+`GET /orders/analytics/seller?from=2026-01-01&to=2026-12-31&period=month` — `SELLER`, own lines only:
+
+```json
+{
+  "orderCount": 31,
+  "revenue": 1840.00,
+  "unitsSold": 96,
+  "bestSellers": [ { "productId": "p1", "productName": "Headphones", "quantity": 40, "amount": 799.60 } ],
+  "trend": [ { "period": "2026-10", "orders": 12, "units": 35, "revenue": 690.00 } ]
+}
+```
+
+Both can be computed with one MongoDB aggregation each (`$match` owner and status → `$unwind: "$items"` → `$group`), using the existing `customer_created` and `seller_created` indexes.
+
+### Open points to agree on
+
+1. Should revenue count only `DELIVERED` orders (money actually collected on delivery), or every non-cancelled order as proposed above?
+2. Do the endpoints live in the Order Service (simplest, the data is here) or in a separate analytics service that reads orders through an internal API?
+3. Size of the "top" lists (proposal: 5) and allowed `period` values (proposal: `day`, `week`, `month`).
