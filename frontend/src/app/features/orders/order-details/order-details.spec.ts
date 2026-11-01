@@ -2,6 +2,7 @@ import { of, throwError } from 'rxjs';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { Order } from '../../../core/models/order';
 import { AuthService } from '../../../core/services/auth';
+import { CartService } from '../../../core/services/cart';
 import { OrderService } from '../../../core/services/order';
 import { OrderDetails } from './order-details';
 
@@ -26,18 +27,29 @@ const sampleOrder = (overrides: Partial<Order> = {}): Order => ({
 });
 
 describe('OrderDetails', () => {
-  let api: { get: ReturnType<typeof vi.fn> };
+  let api: { get: ReturnType<typeof vi.fn>; cancel: ReturnType<typeof vi.fn>; reorder: ReturnType<typeof vi.fn> };
+  let cart: { add: ReturnType<typeof vi.fn> };
 
   const create = (role: 'CLIENT' | 'SELLER' = 'CLIENT', id: string | null = 'order-000123') =>
     new OrderDetails(
       api as unknown as OrderService,
+      cart as unknown as CartService,
       { hasRole: (r: string) => r === role } as unknown as AuthService,
       { snapshot: { paramMap: convertToParamMap(id ? { id } : {}) } } as unknown as ActivatedRoute,
     );
 
   beforeEach(() => {
-    api = { get: vi.fn(() => of(sampleOrder())) };
+    api = {
+      get: vi.fn(() => of(sampleOrder())),
+      cancel: vi.fn(() => of(sampleOrder({ status: 'CANCELLED' }))),
+      reorder: vi.fn(() =>
+        of({ sourceOrderId: 'order-000123', items: [{ productId: 'p1', quantity: 2 }, { productId: 'p2', quantity: 1 }] }),
+      ),
+    };
+    cart = { add: vi.fn(() => of({})) };
   });
+
+  afterEach(() => vi.useRealTimers());
 
   it('loads the order from the route id', () => {
     const page = create();
@@ -74,5 +86,81 @@ describe('OrderDetails', () => {
     expect(api.get).toHaveBeenCalledWith('');
     expect(page.error()).toBe(message);
     expect(page.busy()).toBe(false);
+  });
+
+  it('offers cancellation to the customer only before shipping', () => {
+    const customer = create();
+    expect(customer.canCancel(sampleOrder({ status: 'PENDING' }))).toBe(true);
+    expect(customer.canCancel(sampleOrder({ status: 'CONFIRMED' }))).toBe(true);
+    expect(customer.canCancel(sampleOrder({ status: 'SHIPPED' }))).toBe(false);
+    expect(create('SELLER').canCancel(sampleOrder({ status: 'PENDING' }))).toBe(false);
+  });
+
+  it('cancels the order and confirms it with a toast that disappears', () => {
+    vi.useFakeTimers();
+    const page = create();
+    page.confirmingCancel.set(true);
+    page.cancel();
+    expect(api.cancel).toHaveBeenCalledWith('order-000123');
+    expect(page.order()?.status).toBe('CANCELLED');
+    expect(page.confirmingCancel()).toBe(false);
+    expect(page.toast()).toContain('Order cancelled');
+    vi.advanceTimersByTime(4000);
+    expect(page.toast()).toBe('');
+  });
+
+  it('shows why a cancellation was refused', () => {
+    api.cancel.mockReturnValue(throwError(() => ({ status: 409, error: { message: 'Cannot change order status from SHIPPED to CANCELLED' } })));
+    const page = create();
+    page.cancel();
+    expect(page.error()).toBe('Cannot change order status from SHIPPED to CANCELLED');
+    expect(page.busy()).toBe(false);
+  });
+
+  it('adds every product back to the cart in order', () => {
+    const page = create();
+    page.reorder();
+    expect(cart.add.mock.calls).toEqual([['p1', 2], ['p2', 1]]);
+    expect(page.reordered()).toBe(true);
+    expect(page.toast()).toBe('All products were added to your cart.');
+    expect(page.busy()).toBe(false);
+    page.ngOnDestroy();
+  });
+
+  it('reports products that could not be added', () => {
+    cart.add.mockReturnValueOnce(throwError(() => ({ status: 409 }))).mockReturnValueOnce(of({}));
+    const page = create();
+    page.reorder();
+    expect(page.toast()).toBe('1 of 2 products were added to your cart. The others are unavailable.');
+    expect(page.reordered()).toBe(true);
+  });
+
+  it('explains when nothing could be added', () => {
+    cart.add.mockReturnValue(throwError(() => ({ status: 409, error: { message: 'Product unavailable or insufficient stock' } })));
+    const page = create();
+    page.reorder();
+    expect(page.reordered()).toBe(false);
+    expect(page.toast()).toBe('');
+    expect(page.error()).toBe('None of these products could be added to your cart (Product unavailable or insufficient stock).');
+  });
+
+  it('falls back to a generic reason and handles a failed reorder request', () => {
+    cart.add.mockReturnValue(throwError(() => ({ status: 0 })));
+    const page = create();
+    page.reorder();
+    expect(page.error()).toBe('None of these products could be added to your cart (unavailable).');
+
+    api.reorder.mockReturnValue(throwError(() => ({ status: 500 })));
+    page.reorder();
+    expect(page.error()).toBe('The order could not be repeated. Please retry.');
+  });
+
+  it('ignores actions while a request is running', () => {
+    const page = create();
+    page.busy.set(true);
+    page.cancel();
+    page.reorder();
+    expect(api.cancel).not.toHaveBeenCalled();
+    expect(api.reorder).not.toHaveBeenCalled();
   });
 });

@@ -1,8 +1,10 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { Order } from '../../../core/models/order';
+import { catchError, concatMap, from, map, of, toArray } from 'rxjs';
+import { CANCELLABLE, Order } from '../../../core/models/order';
 import { AuthService } from '../../../core/services/auth';
+import { CartService } from '../../../core/services/cart';
 import { OrderService } from '../../../core/services/order';
 import { shortId, statusBadge, statusLabel } from '../order-status';
 
@@ -13,7 +15,7 @@ import { shortId, statusBadge, statusLabel } from '../order-status';
   imports: [CommonModule, RouterLink],
   templateUrl: './order-details.html',
 })
-export class OrderDetails implements OnInit {
+export class OrderDetails implements OnInit, OnDestroy {
   readonly statusLabel = statusLabel;
   readonly statusBadge = statusBadge;
   readonly shortId = shortId;
@@ -21,11 +23,16 @@ export class OrderDetails implements OnInit {
   readonly order = signal<Order | null>(null);
   readonly busy = signal(false);
   readonly error = signal('');
+  readonly toast = signal('');
+  readonly confirmingCancel = signal(false);
+  readonly reordered = signal(false);
   readonly seller: boolean;
   private readonly id: string;
+  private toastTimer?: ReturnType<typeof setTimeout>;
 
   constructor(
     private readonly orders: OrderService,
+    private readonly carts: CartService,
     auth: AuthService,
     route: ActivatedRoute,
   ) {
@@ -41,6 +48,10 @@ export class OrderDetails implements OnInit {
     this.load();
   }
 
+  ngOnDestroy(): void {
+    clearTimeout(this.toastTimer);
+  }
+
   load(): void {
     this.busy.set(true);
     this.error.set('');
@@ -53,9 +64,75 @@ export class OrderDetails implements OnInit {
     });
   }
 
+  canCancel(order: Order): boolean {
+    return !this.seller && CANCELLABLE.includes(order.status);
+  }
+
+  cancel(): void {
+    if (this.busy()) return;
+    this.confirmingCancel.set(false);
+    this.busy.set(true);
+    this.error.set('');
+    this.orders.cancel(this.id).subscribe({
+      next: order => {
+        this.order.set(order);
+        this.busy.set(false);
+        this.notify('Order cancelled. Nothing will be delivered or charged.');
+      },
+      error: e => this.fail(e, 'The order could not be cancelled. Please retry.'),
+    });
+  }
+
+  /** Puts the products of this order back in the cart, at today's prices. */
+  reorder(): void {
+    if (this.busy()) return;
+    this.busy.set(true);
+    this.error.set('');
+    this.reordered.set(false);
+    let firstProblem = '';
+    this.orders
+      .reorder(this.id)
+      .pipe(
+        concatMap(result => from(result.items)),
+        concatMap(item =>
+          this.carts.add(item.productId, item.quantity).pipe(
+            map(() => true),
+            catchError(e => {
+              firstProblem ||= e.error?.message || 'unavailable';
+              return of(false);
+            }),
+          ),
+        ),
+        toArray(),
+      )
+      .subscribe({
+        next: added => {
+          const count = added.filter(Boolean).length;
+          this.busy.set(false);
+          if (!count) {
+            this.error.set(`None of these products could be added to your cart (${firstProblem}).`);
+            return;
+          }
+          this.reordered.set(true);
+          this.notify(
+            count === added.length
+              ? 'All products were added to your cart.'
+              : `${count} of ${added.length} products were added to your cart. The others are unavailable.`,
+          );
+        },
+        error: e => this.fail(e, 'The order could not be repeated. Please retry.'),
+      });
+  }
+
   /** Newest change first. */
   timeline(order: Order) {
     return [...order.statusHistory].reverse();
+  }
+
+  protected notify(message: string): void {
+    clearTimeout(this.toastTimer);
+    this.toast.set(message);
+    this.toastTimer = setTimeout(() => this.toast.set(''), 4000);
   }
 
   protected fail(e: { status?: number; error?: { message?: string } }, fallback: string): void {
