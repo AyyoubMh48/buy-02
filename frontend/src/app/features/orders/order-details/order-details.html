@@ -21,11 +21,11 @@
         <button *ngIf="!confirmingCancel()" class="btn btn-outline-danger" (click)="confirmingCancel.set(true)" [disabled]="busy()">
           Cancel order
         </button>
-        <span *ngIf="confirmingCancel()" class="d-flex flex-wrap align-items-center gap-2" role="group" aria-label="Confirm cancellation">
-          <span>Cancel this order?</span>
+        <fieldset *ngIf="confirmingCancel()" class="d-flex flex-wrap align-items-center gap-2">
+          <legend class="float-none w-auto fs-6 mb-0">Cancel this order?</legend>
           <button class="btn btn-danger" (click)="cancel()" [disabled]="busy()">Yes, cancel it</button>
           <button class="btn btn-outline-secondary" (click)="confirmingCancel.set(false)" [disabled]="busy()">Keep order</button>
-        </span>
+        </fieldset>
       </ng-container>
       <button class="btn btn-primary" (click)="reorder()" [disabled]="busy()">Order again</button>
       <a *ngIf="reordered()" class="btn btn-outline-primary" routerLink="/cart">Go to cart</a>
