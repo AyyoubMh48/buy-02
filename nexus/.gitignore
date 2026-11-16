@@ -1,0 +1,7 @@
+# Private files and downloaded runtime data never belong in Git.
+.env
+secrets/
+data/
+downloads/
+*.password
+settings.local.xml

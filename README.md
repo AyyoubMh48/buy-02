@@ -424,3 +424,11 @@ Legacy `jenkins-lab/compose.yml` also supports the original privileged DinD lab;
 host-daemon controller file explicitly. Preserve legacy named volumes when updating
 an existing installation; a new PC should follow the fresh setup without importing
 other people's passwords or using reset/delete-volume commands.
+
+## Nexus Maven repository management
+
+See [the Nexus Maven runbook](docs/NEXUS_MAVEN_RUNBOOK.md),
+[actual verification results](docs/NEXUS_VERIFICATION.md), and
+[my Nexus part explained](docs/MY_NEXUS_PART_EXPLAINED.md).
+The existing Spring Boot 4.1 / Java 17 baseline conflicts with the requested
+Java 11 build requirement; the runbook records the blocker and evidence.

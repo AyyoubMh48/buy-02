@@ -126,4 +126,17 @@
 		</plugins>
 	</build>
 
+
+    <!-- Maven credentials come from settings.xml; never store them in this POM. -->
+    <distributionManagement>
+        <repository>
+            <id>nexus-releases</id>
+            <url>${env.NEXUS_URL}/repository/maven-releases/</url>
+        </repository>
+        <snapshotRepository>
+            <id>nexus-snapshots</id>
+            <url>${env.NEXUS_URL}/repository/maven-snapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>
+
 </project>
