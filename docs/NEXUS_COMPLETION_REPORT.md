@@ -1,5 +1,68 @@
 # Nexus follow-up: completed work and remaining execution
 
+## Temporary Docker migration phase — 2026-11-17
+
+**Backup verified:** `/var/backups/nexus/native-3.98.1-01-20261117T115025Z.tar`,
+SHA-256 `6e191d2ae6b34e798b0ecef0b5c9f3b4935ae1101e66a125802f0ffeb169dfdf`,
+3,521 archive entries. A second checksum and tar comparison passed, including
+comparison against the still-untouched `/var/lib/nexus` source.
+
+**Temporary Docker instance verified:** Sonatype image tag `3.98.1` resolved to
+Nexus `3.98.1-01` (amd64); the image declares user `nexus`, runtime UID/GID
+200:200. The new `buy02-nexus-data` volume contains the restored data (3,469
+files; about 193 MiB). Only the copied listener changed from `127.0.0.1` to
+`0.0.0.0` inside the container; host publishing remains loopback-only. The
+container is healthy on `127.0.0.1:18081`; UI/readiness/writable endpoints return
+HTTP 200, and a Windows PowerShell HTTP request returned 200. The mounted DB and
+blob paths are writable as UID 200; the default blob store has 3,373 files
+(178.9 MiB). No blob-store read-only warnings were found in the container logs.
+
+**Still blocked:** repositories/users/roles API requests return 401. The known
+private admin/reader/publisher credential files and environment variables are
+absent, so authenticated inventory, artifact-coordinate checks and Maven access
+cannot yet be verified. Startup logs identify the stored Maven repository names,
+but that is not a substitute for authenticated inventory. No Docker writes to
+existing artifacts have been attempted. The temporary container remains on
+18081; final cutover to 8081 has not occurred and awaits explicit approval.
+Native `/var/lib/nexus` and the verified backup remain intact; the native systemd
+service is stopped. To roll back now, stop the Compose container and start the
+native service. Do not remove the backup or Docker volume.
+
+## Docker migration implementation checkpoint — 2026-11-17
+
+**Implemented in the checkout:** `nexus/docker-compose.yml` pins Sonatype's
+verified `sonatype/nexus3:3.98.1` release tag, uses the image's default
+non-root UID 200, stores state in `buy02-nexus-data`, publishes only on
+`127.0.0.1`, and checks read/write readiness. The pinned payload corresponds to
+the existing 3.98.1-01 native installation. README, runbook and script guide
+now describe Compose as the recommended deployment and the native installation
+as rollback/fallback.
+
+**Read-only inspection completed 2026-11-17:** Docker 29.7.1 and Compose 5.4.0
+are available; the daemon is accessible with approved escalation. No Nexus
+container or `buy02-nexus-data` volume exists. The only other volumes are an
+empty anonymous volume and `backend_mongo_data`. Compose validation passes.
+Native `nexus.service` is active as `nexus:nexus` (PID 291), configured for
+`/opt/nexus` and `/var/lib/nexus`, with a loopback listener on 127.0.0.1:8081.
+The 3.98.1-01 data directory is 193 MiB, contains the H2 database, `default`
+blob store and 3,373 blob files; a read-only scan found no recent blob-store
+read-only warning. Read/write readiness endpoints return HTTP 200.
+
+Repositories/users/roles could not be inventoried through the REST API because
+the read-only endpoints return 401. The initial admin password file and the
+known private credential files are absent; `nexus/env.example` contains blank
+examples. Secret values were not read or printed. Artifact file data exists,
+but component coordinates/counts cannot be established without authenticated
+access. No consistent backup was created: that requires stopping the active
+service, which still needs explicit approval. No service, data or Docker state
+was changed. Windows access, restored-container checks, Maven publishing,
+artifact checksum retrieval, caching and RBAC remain pending.
+
+Sonatype documents that the container writes `/nexus-data` as UID 200 and that
+the official image supports the 3.98.1 tag. Data compatibility remains a risk
+until a verified offline copy starts successfully; keep the old installation
+and the backup intact for rollback. See the [runbook migration procedure](NEXUS_MAVEN_RUNBOOK.md#recommended-deployment-sonatype-docker-compose).
+
 Verification date: 2026-11-16. Branch: `feature/nexus-maven`.
 This follows the original [verification report](NEXUS_VERIFICATION.md).
 The latest scope preserves Java, Spring Boot, all service POM compatibility

@@ -427,6 +427,23 @@ other people's passwords or using reset/delete-volume commands.
 
 ## Nexus Maven repository management
 
+The recommended Nexus deployment is the isolated Compose project in
+`nexus/docker-compose.yml`. It uses Sonatype's verified `sonatype/nexus3:3.98.1`
+release image and the persistent `buy02-nexus-data` Docker volume. The image's
+Nexus payload is 3.98.1-01, matching the existing native installation. Port 8081
+binds to IPv4 loopback only. See the [Docker migration and Maven runbook](docs/NEXUS_MAVEN_RUNBOOK.md)
+before starting it: migrating existing data requires a consistent backup and a
+stopped native service, and those operations require operator approval.
+
+For a fresh, empty Docker deployment only:
+
+```bash
+docker compose -f nexus/docker-compose.yml config --quiet
+docker volume create buy02-nexus-data
+docker compose -f nexus/docker-compose.yml up -d --wait
+docker compose -f nexus/docker-compose.yml ps
+```
+
 See [the Nexus Maven runbook](docs/NEXUS_MAVEN_RUNBOOK.md),
 [actual verification results](docs/NEXUS_VERIFICATION.md), and
 [my Nexus part explained](docs/MY_NEXUS_PART_EXPLAINED.md).

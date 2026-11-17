@@ -5,6 +5,41 @@
 الشرح ما كيعنيش باللي Nexus تنصّب ولا باللي شي ملف تنشر فيه. النتيجة الحقيقية
 ديال الاختبارات كاينة فـ [تقرير التحقق](NEXUS_VERIFICATION.md).
 
+## الطريقة الموصى بها دابا: Docker Compose
+
+التشغيل الموصى به ولى هو `nexus/docker-compose.yml` بالصورة الرسمية
+`sonatype/nexus3:3.98.1` (البرنامج اللي داخلها هو 3.98.1-01). Docker volume
+سميتو `buy02-nexus-data` كيبقى فيه `/nexus-data`، والكونتينر كيخدم بالـ UID
+200 ديال الصورة، و8081 مربوط غير بـ `127.0.0.1`. فحص الصحة كيتأكد من
+القراءة والكتابة. ما كايناش كلمات سر فـ Compose.
+
+```bash
+docker compose -f nexus/docker-compose.yml config --quiet
+docker volume create buy02-nexus-data
+docker compose -f nexus/docker-compose.yml up -d --wait
+docker compose -f nexus/docker-compose.yml ps
+```
+
+هاد `up` ديال نسخة جديدة خاوية فقط. إلا بغينا نحافظو على بيانات التنصيب
+القديم، خاص نسخة احتياطية كاملة ومتناسقة من `/var/lib/nexus` من بعد ما توقف
+الخدمة القديمة، ومن بعد نقل البيانات للـ volume وهي مملوكة لـ UID/GID 200.
+ما نشغلوش جوج نسخ Nexus على نفس المجلد. خاص موافقة المسؤول قبل `sudo` أو
+إيقاف الخدمة أو أي نقل للبيانات. حتى يتدار النقل ويتفحص، التنصيب الأصلي باقي
+هو fallback؛ ما تحيدوش. تفاصيل النسخ والاسترجاع والتحقق فـ
+[دليل التشغيل](NEXUS_MAVEN_RUNBOOK.md#recommended-deployment-sonatype-docker-compose).
+
+الشرح اللي جاي على `nexus/install.sh` و`systemd` كيوثق التنصيب القديم وكيعاون
+فالـ fallback؛ ماشي هو طريقة التشغيل الجديدة الموصى بها.
+
+فـ 2026-11-17 تصاوبات backup متحققة، وتسترجعات فـ volume جديد؛ القديم
+باقي محفوظ. Nexus فـ Docker دابا healthy فـ `127.0.0.1:18081`، وبجوج
+HTTP ديال القراءة والكتابة رجعو 200 حتى من Windows. الكونتينر خدام بـ UID/GID
+200، والـ blobstore writable وفيه 3,373 ملف بلا تحذيرات read-only.
+واجهات repositories/users/roles رجعات 401، حيث بيانات الدخول الخاصة ما بانوش
+فالمسارات المعروفة؛ ما نقدرش نأكد الأسماء ولا artifacts عبر API حتى يتوفرو
+بشكل سري. مازال ما درناش cutover لـ 8081، وخص موافقة صريحة عليه. النتائج
+بالتفصيل فـ [تقرير التحقق](NEXUS_COMPLETION_REPORT.md).
+
 ## قبل ما نبداو: شكون كيدير شنو؟
 
 `Maven` كيقرا `pom.xml` ديال كل خدمة، كيجيب المكتبات، كيكمپيلي Java، كيدوز

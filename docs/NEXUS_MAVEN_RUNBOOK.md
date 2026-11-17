@@ -1,5 +1,169 @@
 # buy-02 Nexus Maven implementation
 
+## Recommended deployment: Sonatype Docker Compose
+
+The recommended runtime is [`nexus/docker-compose.yml`](../nexus/docker-compose.yml),
+using Sonatype's verified `sonatype/nexus3:3.98.1` image tag. The official image
+metadata identifies this payload as Nexus 3.98.1-01, which matches the existing
+native installation. It runs as the image's non-root UID 200 and expects
+`/nexus-data` writable. Compose uses the named volume `buy02-nexus-data`, binds
+`${NEXUS_HOST_PORT:-8081}` to `127.0.0.1`, restarts unless stopped, and checks
+both Nexus read and write readiness. It has no published port on a non-loopback
+interface. Sonatype documents UID 200 and recommends a Docker volume; see the
+[official image documentation](https://github.com/sonatype/docker-nexus3#persistent-data)
+and [verified image tags](https://hub.docker.com/r/sonatype/nexus3/tags).
+
+The default tag is compatible by application version, but only a restored copy
+can establish data compatibility. Do not attach `/var/lib/nexus` directly to a
+container while the native service is running. Before migration, take a complete
+offline archive of that directory, verify its file list and checksum, and keep
+the native installation intact for rollback. The old WSL2 service currently
+owns port 8081, so validation must use a temporary loopback port (18081), stop
+the container, and then cut over to 8081. This document does not claim that
+backup or cutover occurred unless a dated verification entry says so.
+
+The native `nexus.properties` binds to `127.0.0.1`, which would bind only to the
+container's private loopback after migration and make Docker port publishing
+unreachable. The migration therefore changes only the copied volume's
+`application-host` to `0.0.0.0`; Compose still publishes the host port solely on
+`127.0.0.1`. The original file remains unchanged in `/var/lib/nexus` and in the
+verified backup.
+
+Compose validation and start for a fresh instance:
+
+```bash
+docker compose -f nexus/docker-compose.yml config --quiet
+docker volume create buy02-nexus-data
+docker compose -f nexus/docker-compose.yml up -d --wait
+docker compose -f nexus/docker-compose.yml ps
+curl --fail --show-error http://127.0.0.1:8081/service/rest/v1/status
+curl --fail --show-error http://127.0.0.1:8081/service/rest/v1/status/writable
+```
+
+For migrated data, do not run the fresh-instance start above. First get explicit
+operator approval for the privileged backup, native service stop, and copy into
+the new named volume. Create the backup only after stopping Nexus so H2, blob
+store and configuration files represent one consistent state. Verify the archive
+before copying, populate a new volume while preserving file modes, then set
+`/nexus-data` ownership to UID/GID 200 as required by the image. Never copy into
+or start against the native directory itself. Start the container initially with
+`NEXUS_HOST_PORT=18081`; after health, repository, user/role and blob-store
+checks pass, stop that container before reusing the same volume on 8081. Keep the
+offline archive and native installation for rollback. The exact commands must
+be adjusted to the approved backup path and actual disk capacity; no privileged
+copy is run by this guide automatically.
+
+To stop the Compose deployment without deleting data:
+
+```bash
+docker compose -f nexus/docker-compose.yml stop
+```
+
+Do not use `down -v`, `volume rm`, or cleanup commands on `buy02-nexus-data`.
+Back up a stopped container with a tar archive of `/nexus-data` and verify the
+archive before storing it securely. Restore only into a separate/new volume with
+Nexus stopped, preserving ownership and file modes; retain the previous volume
+until restore checks complete.
+
+### Authentication and Maven repositories
+
+The data migration carries over the old admin password, repositories, users,
+roles, blob stores and artifacts. The Compose file intentionally has no
+bootstrap password setting that could replace migrated security state. Use the
+existing `nexus/env.example` variable names with values from the private
+credential store; never place secrets in Compose, Git, command history or chat.
+The scripts provision `maven-releases`, `maven-snapshots`, `maven-central`, and
+`maven-public`, plus separate reader and publisher roles. Use the runbook's
+`provision`, `build all`, `publish all`, `verify-artifact`, `cache`, and
+`verify-access` procedures after the Docker instance is healthy. Maven settings
+are in `nexus/maven/settings.xml`; builds use reader credentials and publishing
+uses publisher credentials. Existing artifacts are not to be overwritten.
+
+### Migration status and verification
+
+Read-only inspection on 2026-11-17 found Docker 29.7.1 / Compose 5.4.0 and no
+existing Nexus container or `buy02-nexus-data` volume. Native Nexus 3.98.1-01
+was active as `nexus:nexus` on `127.0.0.1:8081`; the operator stopped it and a
+verified 3,521-entry archive was made. The archive still compares exactly with
+the untouched 193 MiB native data directory. The restored copy has 3,469 files
+and is owned by UID/GID 200:200. Temporary Docker Nexus 3.98.1-01 is healthy on
+`127.0.0.1:18081`; UI/read/write checks and a Windows HTTP request return 200.
+The default blob store has 3,373 files, is writable, and has no read-only
+warnings. REST inventory of repositories/users/roles returns 401 because the
+known private credentials are absent, so logical inventory and Maven checks
+remain pending. Final port 8081 cutover has not been approved or run. See the
+[dated completion report](NEXUS_COMPLETION_REPORT.md) for details. Keep the
+native data and backup intact until cutover is approved.
+
+#### Migration commands and execution boundary
+
+The backup, restore into the new `buy02-nexus-data` volume, and temporary start
+on loopback port 18081 have now been executed with operator approval. Their
+results are recorded in `NEXUS_COMPLETION_REPORT.md`; do not rerun the first
+section against the populated volume. It records the safe procedure for
+reference. The final port change remains approval-gated.
+
+```bash
+set -euo pipefail
+BACKUP="/var/backups/nexus/native-3.98.1-01-$(date -u +%Y%m%dT%H%M%SZ).tar"
+sudo install -d -m 0700 /var/backups/nexus
+sudo systemctl stop nexus.service
+test "$(sudo systemctl show nexus.service --property=ActiveState --value)" = inactive
+sudo test ! -e "$BACKUP"
+sudo tar --create --file="$BACKUP" --numeric-owner --acls --xattrs \
+  --directory /var/lib/nexus .
+sudo tar --compare --file="$BACKUP" --directory /var/lib/nexus
+sudo tar --list --file="$BACKUP" | wc -l
+sudo sha256sum "$BACKUP" | sudo tee "$BACKUP.sha256" >/dev/null
+sudo sha256sum --check "$BACKUP.sha256"
+
+docker pull sonatype/nexus3:3.98.1
+if docker volume inspect buy02-nexus-data >/dev/null 2>&1; then
+  echo 'Refusing to overwrite existing buy02-nexus-data' >&2
+  exit 1
+fi
+docker volume create buy02-nexus-data
+BACKUP_NAME=$(basename "$BACKUP")
+docker run --rm --network none --user 0:0 --entrypoint sh \
+  --volume buy02-nexus-data:/dest \
+  --volume /var/backups/nexus:/backup:ro \
+  --env BACKUP_NAME="$BACKUP_NAME" mongo:7 -ec '
+    test -z "$(ls -A /dest)"
+    tar --numeric-owner --acls --xattrs -xpf "/backup/$BACKUP_NAME" -C /dest
+    tar --compare --file="/backup/$BACKUP_NAME" --directory /dest
+    grep -qxF application-host=127.0.0.1 /dest/etc/nexus.properties
+    sed -i "s/^application-host=127\\.0\\.0\\.1$/application-host=0.0.0.0/" /dest/etc/nexus.properties
+    chown -R 200:200 /dest
+  '
+
+NEXUS_HOST_PORT=18081 docker compose -f nexus/docker-compose.yml up -d --wait --wait-timeout 900
+curl --fail --show-error http://127.0.0.1:18081/service/rest/v1/status
+curl --fail --show-error http://127.0.0.1:18081/service/rest/v1/status/writable
+docker exec buy02-nexus id
+docker exec buy02-nexus sh -ec 'test -w /nexus-data/db && test -w /nexus-data/blobs/default'
+```
+
+Use the private admin/reader/publisher credentials to verify the migrated
+repositories, accounts, roles, artifacts and Maven checksums before the final
+port change. Those credentials are unavailable in the inspected environment;
+do not reset the migrated admin password or guess credentials. Once the checks
+pass and the operator approves cutover, move to port 8081 and prevent the
+preserved native unit from competing after reboot:
+
+```bash
+NEXUS_HOST_PORT=18081 docker compose -f nexus/docker-compose.yml stop
+docker compose -f nexus/docker-compose.yml up -d --wait --force-recreate
+curl --fail --show-error http://127.0.0.1:8081/service/rest/v1/status
+curl --fail --show-error http://127.0.0.1:8081/service/rest/v1/status/writable
+sudo systemctl disable nexus.service
+```
+
+Rollback: stop the Compose service first, then run
+`sudo systemctl enable --now nexus.service`. The original `/var/lib/nexus`,
+backup archive and Docker volume remain separate. Never run both Nexus
+instances against one writable directory, and never remove the backup or volume
+as part of rollback.
+
 This implements the Maven/Nexus portion of the existing marketplace. Application
 Dockerfiles, container publishing, Docker repositories and CI pipelines remain
 owned by the teammate. The actual verification results and outstanding checks are
