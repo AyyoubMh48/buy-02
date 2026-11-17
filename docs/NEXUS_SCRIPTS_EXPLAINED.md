@@ -1,688 +1,80 @@
-# شرح سكريبتات Nexus ديال buy-02 بالدارجة المغربية
+# Nexus deployment and scripts
 
-هاد الملف كيشرح السكريبتات اللي كاينين فعلاً فـ `nexus/` و
-`scripts/nexus/`. الأوامر كتدار من جذر المشروع، إلا إلا قلنا شي حاجة أخرى.
-الشرح ما كيعنيش باللي Nexus تنصّب ولا باللي شي ملف تنشر فيه. النتيجة الحقيقية
-ديال الاختبارات كاينة فـ [تقرير التحقق](NEXUS_VERIFICATION.md).
+Docker Compose is the supported Nexus deployment. This guide inventories the
+remaining project files and the task each one serves.
 
-## الطريقة الموصى بها دابا: Docker Compose
+## File classification
 
-التشغيل الموصى به ولى هو `nexus/docker-compose.yml` بالصورة الرسمية
-`sonatype/nexus3:3.98.1` (البرنامج اللي داخلها هو 3.98.1-01). Docker volume
-سميتو `buy02-nexus-data` كيبقى فيه `/nexus-data`، والكونتينر كيخدم بالـ UID
-200 ديال الصورة، و8081 مربوط غير بـ `127.0.0.1`. فحص الصحة كيتأكد من
-القراءة والكتابة. ما كايناش كلمات سر فـ Compose.
+| File | Classification | Purpose |
+| --- | --- | --- |
+| `nexus/docker-compose.yml` | KEEP | Pinned official image, localhost-only port, persistent volume and health check |
+| `nexus/maven/settings.xml` | KEEP | Maven mirror and authenticated deployment IDs |
+| `nexus/repositories.json` | KEEP | Desired hosted, proxy and group repository definitions |
+| `nexus/env.example` | KEEP | Variable names and non-secret examples only |
+| `nexus/.gitignore` | KEEP | Excludes local env, secret, data and download files |
+| `scripts/nexus/manage.py` | KEEP | Audit, provisioning, builds, publishing, cache, retrieval and RBAC checks |
+| `scripts/nexus/nexus_api.py` | KEEP | Authenticated REST client that avoids logging credentials/response bodies |
+| `scripts/nexus/test_nexus.py` | KEEP | Unit and safety tests for Nexus tooling |
+| `scripts/nexus/setup_credentials.py` | KEEP | Private interactive setup; exclusive mode-0600 file creation outside Git |
+| `README.md` and Nexus docs | UPDATE | Current Docker workflow, evidence and remaining authenticated work |
+| Native installer, downloader, health check, systemd units and native properties | REMOVE | Superseded native deployment implementation; data/service are retained on host |
+| `scripts/nexus/test_download.py` | REMOVE | Tested only the obsolete native archive downloader |
+
+## Compose operations
+
+From the repository root:
 
 ```bash
 docker compose -f nexus/docker-compose.yml config --quiet
-docker volume create buy02-nexus-data
-docker compose -f nexus/docker-compose.yml up -d --wait
+NEXUS_HOST_PORT=18081 docker compose -f nexus/docker-compose.yml up -d --wait --wait-timeout 900
 docker compose -f nexus/docker-compose.yml ps
+docker compose -f nexus/docker-compose.yml logs --tail=100 nexus
+docker inspect buy02-nexus --format '{{.State.Health.Status}}'
+docker exec buy02-nexus id
 ```
 
-هاد `up` ديال نسخة جديدة خاوية فقط. إلا بغينا نحافظو على بيانات التنصيب
-القديم، خاص نسخة احتياطية كاملة ومتناسقة من `/var/lib/nexus` من بعد ما توقف
-الخدمة القديمة، ومن بعد نقل البيانات للـ volume وهي مملوكة لـ UID/GID 200.
-ما نشغلوش جوج نسخ Nexus على نفس المجلد. خاص موافقة المسؤول قبل `sudo` أو
-إيقاف الخدمة أو أي نقل للبيانات. حتى يتدار النقل ويتفحص، التنصيب الأصلي باقي
-هو fallback؛ ما تحيدوش. تفاصيل النسخ والاسترجاع والتحقق فـ
-[دليل التشغيل](NEXUS_MAVEN_RUNBOOK.md#recommended-deployment-sonatype-docker-compose).
-
-الشرح اللي جاي على `nexus/install.sh` و`systemd` كيوثق التنصيب القديم وكيعاون
-فالـ fallback؛ ماشي هو طريقة التشغيل الجديدة الموصى بها.
-
-فـ 2026-11-17 تصاوبات backup متحققة، وتسترجعات فـ volume جديد؛ القديم
-باقي محفوظ. Nexus فـ Docker دابا healthy فـ `127.0.0.1:18081`، وبجوج
-HTTP ديال القراءة والكتابة رجعو 200 حتى من Windows. الكونتينر خدام بـ UID/GID
-200، والـ blobstore writable وفيه 3,373 ملف بلا تحذيرات read-only.
-واجهات repositories/users/roles رجعات 401، حيث بيانات الدخول الخاصة ما بانوش
-فالمسارات المعروفة؛ ما نقدرش نأكد الأسماء ولا artifacts عبر API حتى يتوفرو
-بشكل سري. مازال ما درناش cutover لـ 8081، وخص موافقة صريحة عليه. النتائج
-بالتفصيل فـ [تقرير التحقق](NEXUS_COMPLETION_REPORT.md).
-
-## قبل ما نبداو: شكون كيدير شنو؟
-
-`Maven` كيقرا `pom.xml` ديال كل خدمة، كيجيب المكتبات، كيكمپيلي Java، كيدوز
-الاختبارات وكيخرج ملف `JAR`. مثلاً gateway كيخرج:
-
-```text
-gateway/target/gateway-0.0.1-SNAPSHOT.jar
-```
-
-`Nexus` هو السيرفر اللي كيخزّن هاد الملفات والمكتبات. `systemd` هو اللي كيشغّل
-Nexus فـ Linux وكيعاود يشعلو إلا طاح. السكريبتات ديالنا كيجمعو هاد الخطوات
-باش ما نبقاوش نديرو الإعدادات باليد كل مرة.
-
-عندنا ست خدمات Java مستقلّين: `discovery` و`gateway` و`user-service`
-و`product-service` و`media-service` و`order-service`. ما كاينش `pom.xml`
-ديال التطبيق فالجذر. الواجهة Angular ما كتتبناش بهاد السكريبتات.
-
-البيئة اللي تفحصات هي Ubuntu فـ WSL2. التثبيت خاصو يتدار فـ Linux فيه
-systemd خدام وصلاحية المسؤول. ما كنشغّلوش هاد التثبيت مباشرة فـ PowerShell،
-وما كنخزّنوش بيانات Nexus فمجلد OneDrive ديال المشروع.
-
-## ١. `nexus/install.sh`: تنصيب Nexus أول مرة
-
-### أشنو كيدير وعلاش محتاجينو؟
-
-كيجهّز Nexus بالإصدار المثبّت `3.98.1-01` فحاسوب Linux بمعمارية x86-64.
-كيستعمل النسخة الحالية المجانية اللي سميتها Community Edition، اللي جات من
-بعد التسمية القديمة OSS. تثبيت إصدار محدد مع بصمتو كيخلّي التنصيب قابل للإعادة.
-
-كيدير الحساب `nexus` بلا تسجيل دخول، وكيشغّل الخدمة بهاد الحساب. البرنامج
-كيتحط تحت `/opt/nexus`، والبيانات اللي خاصها تبقى كتمشي لـ `/var/lib/nexus`.
-هاد الفصل كيخلّي إعادة تشغيل الخدمة ما تمسحش الملفات المنشورة.
-
-### فوقاش وكيفاش نشغّلوه؟
-
-غير أول مرة، فوق جهاز Linux اللي غادي يستضيف Nexus، ومن بعد موافقة المسؤول:
-
-```bash
-bash -n nexus/install.sh nexus/download.sh nexus/healthcheck.sh
-sudo bash nexus/install.sh
-```
-
-`bash -n` كيفحص تركيب Bash بلا ما ينصّب والو. الأمر الثاني كيبدّل إعدادات
-النظام، وخصو الموافقة وصلاحية sudo. كلمة السر ديال sudo كتبقى غير فالترمينال
-الخاص ديالك؛ ما تصيفطهاش فالشات ولا فالتسجيلات.
-
-### شنو كيوقع فالداخل، وشنو الأوامر اللي كيستعمل؟
-
-1. `set -euo pipefail` كيوقف السكريبت إلا وقع خطأ، ولا متغير ضروري ناقص،
-   ولا شي أمر فـ pipe فشل. `umask 027` كينقص الصلاحيات الافتراضية ديال الملفات.
-2. كيتأكد من `EUID` و`uname` ومن وجود `/run/systemd/system`، ومن الأدوات
-   بحال `curl` و`tar` و`python3` و`systemctl`.
-3. `flock` كيمنع جوج عمليات ديال التنصيب يخدمو فنفس الوقت.
-4. كيرفض يعوّض تثبيت قديم ماشي ديالو. إلا لقى تثبيت كامل دارو من قبل،
-   كيكتفي بإشعال الخدمة وفحصها.
-5. كيصاوب كاش دائم فـ `/var/cache/nexus/downloads` وكيعيط لـ
-   `nexus/download.sh` باش يحمّل الملف ولا يكمل تحميل سابق.
-6. `sha256sum` كيتأكد مرة أخرى من البصمة المثبّتة قبل أي استخراج.
-   من بعد `mktemp` كيدير مجلد مؤقت غير للاستخراج و`tar` كيفكّ الأرشيف الصحيح.
-7. غير من بعد التحقق والاستخراج، `getent` و`groupadd` و`useradd` كيتعاملو
-   مع حساب nexus. كود Python صغير كيبقي إعدادات Java ديال المورّد وكيبدّل
-   مسارات التخزين واللوغات والملفات المؤقتة لـ `/var/lib/nexus`.
-8. `install` و`chown` و`chmod` كيضبطو الملكية والصلاحيات. التطبيق كيكون
-   مملوك لـ root ومقروء للحساب nexus، والبيانات كيقدر يكتب فيها nexus.
-9. `mv` و`ln -s` كيحطّو الإصدار وكيصاوبو الرابط `/opt/nexus`.
-10. `systemctl daemon-reload` كيقرّي ملفات الخدمة، و`enable --now` كيفعّلها
-    دابا ومع الإقلاع. من بعد كيدوز فحص القراءة والكتابة.
-
-`trap` كينظف غير مجلد الاستخراج المؤقت ملي تسالي العملية. ما كيمسحش الكاش ولا
-التحميل الناقص. السكريبت ما كيحذفش بيانات Nexus القديمة وما كيديرش ترقية
-تلقائية لقاعدة البيانات.
-
-### أشنو يقدر يوقع وكيفاش نعرف النتيجة؟
-
-- بلا sudo ولا systemd، كيوقف برسالة واضحة. فـ Windows خاصك تدخل لبيئة Linux
-  مناسبة؛ وجود أمر `systemctl` بوحدو ما كافيش إلا systemd ما خدامش.
-- إلا البصمة ما تطابقاتش، كيوقف قبل فكّ الأرشيف وقبل إنشاء حساب nexus فهاد
-  النسخة المصححة. حساب كان تصاوب فمحاولة قديمة كيبقى محفوظ.
-- إلا لقى `/opt/nexus` ولا `/var/lib/nexus` من قبل، كيطلب المراجعة. ما تمسحش
-  هاد المسارات باش تجبرو يكمل.
-- إلا تقطع التنصيب فنص الطريق، خاص تشوف شنو تدار قبل ما تعاود. ما كاينش
-  رجوع تلقائي لجميع تغييرات النظام.
-- إلا RAM ولا القرص ما كافيينش، ولا الصلاحيات غلط، الخدمة تقدر ما تولّيش جاهزة.
-
-```bash
-systemctl status nexus --no-pager
-bash nexus/healthcheck.sh
-ps -eo user,pid,comm
-sudo ss -ltnp 'sport = :8081'
-sudo stat -c '%U:%G %a %n' /var/lib/nexus /var/lib/nexus/etc/nexus.properties
-```
-
-خاص الخدمة تكون `active (running)`، وعملية Nexus Java تكون ديال `nexus`
-ماشي root، والمنفذ يكون مربوط غير بـ `127.0.0.1:8081`.
-
-أول دخول للواجهة كيحتاج كلمة السر اللي فـ `/var/lib/nexus/admin.password`.
-قراها غير محلياً وبطريقة خاصة، بدّلها فمعالج البداية، وكمل الإعدادات. السكريبت
-ما كيكتبش كلمة سر المسؤول فالمشروع وما كيكملش هاد المعالج بلاصتك.
-
-## ١ مكرر. `nexus/download.sh`: تحميل كيكمل منين تقطع
-
-### أشنو كيدير وعلاش محتاجينو؟
-
-المشكل اللي وقع هو `curl: (56) Recv failure: Connection reset by peer`
-قريب يسالي التحميل. السكريبت القديم كان كيحط الملف فمجلد `mktemp`، و`trap`
-كان كيمسحو حتى فالخطأ. بهاد الشكل، داك 96% كان كيضيع فالفشل العادي.
-لهذا زدنا مساعد كيحتافظ بالتحميل الناقص وكيتأكد من الملف الكامل قبل استعمالو.
-
-### فوقاش وكيفاش كيتشغّل؟
-
-`install.sh` كيشغّلو تلقائياً قبل استخراج Nexus. كياخد رابط HTTPS والبصمة
-الموثوقة ومكان الملف، واختيارياً مسار تحميل قديم نجا من المسح.
-التركيب ديال الأمر هو:
-
-```text
-bash nexus/download.sh URL SHA256 DESTINATION [EXISTING_PARTIAL]
-```
-
-ما كيحتاجش sudo بوحدو إلا استعملتي مجلد كاتقدر تكتب فيه؛ ما كينصّب حتى خدمة
-وما كيمسش بيانات Nexus. المثبّت كيستعملو فالكاش المحمي ديال النظام.
-
-### شنو كيوقع فالداخل وشنو الأوامر اللي كيستعمل؟
-
-- الملف الناقص هو `/var/cache/nexus/downloads/nexus-3.98.1-01-linux-x86_64.tar.gz.part`.
-  ملف `.source` كيربطو بالرابط وبالبصمة المطلوبة؛ `.lock` كيمنع جوج محاولات
-  يكتبو فنفس الملف. `flock` كيقفل و`stat` كيقيس شحال من بايت كاينة.
-- كل محاولة كتستعمل `curl --continue-at -` باش curl يكمل من الحجم الموجود
-  فالقرص. ما كيستعملش `--insecure`، وكيقبل غير HTTPS حتى فالتحويلات.
-- كاينين حتى 5 محاولات، و`sleep` كيتسنى 2، 4، 8، ومن بعد 16 ثانية.
-  مهلة الاتصال 20 ثانية، والمحاولة حتى 1800 ثانية. إلا النقل بقى تحت
-  1024 بايت فالثانية لمدة 60 ثانية، curl كيوقف وكيخلي الملف للمحاولة الجاية.
-- فهاد السكريبت `--retry 0` مقصودة: الحلقة هي اللي كتعاود أمر curl من جديد
-  كل مرة، باش يحسب آخر حجم وصل ليه. هادي كتسمح حتى بمعاودة أخطاء 56 و18 و28
-  بلا الرجوع لنقطة قديمة فالتحميل.
-- إلا السيرفر رفض Range بـ HTTP 416 ولا curl 33، كيحتافظ بالملف الناقص تحت
-  اسم `.rejected.XXXXXX`، وكيعاود غير التحميل من الصفر. ما كيحذفش Nexus data.
-- إلا البصمة خاسرة، ما كاينش استخراج: كيحتافظ بالمرشح ويرخّص بمحاولة جديدة
-  محدودة، ومن بعد كيوقف إلا الملف بقى ما مطابقش البصمة.
-- `sha256sum` كيتأكد من الملف كامل. غير إلا تطابق كيدير `mv` للاسم النهائي
-  بلا `.part`. ملف صحيح موجود من قبل كيتستعمل بلا تحميل جديد وبلا تعويضو.
-
-الرابط اللي باقي مثبّت هو:
-
-```text
-https://download.sonatype.com/nexus/3/nexus-3.98.1-01-linux-x86_64.tar.gz
-```
-
-التحميل الناقص ما نقدرش نضمنو صحيح غير من الاسم ولا الحجم؛ البصمة الكاملة هي
-الحكم النهائي. كنجربو نكملو غير المرشح المرتبط بالمصدر الصحيح، وما كنستخرجوهش
-حتى ينجح التحقق. ملف ناقص من مصدر آخر كيبقى محفوظ وكنبداو تحميل جديد.
-
-### أشنو يقدر يوقع وكيفاش نرجعو المحاولة؟
-
-إلا المحاولات كاملين فشلو ولا قطعتي الأمر، `.part` كتبقى. عاود نفس أمر التنصيب
-من بعد الموافقة المحلية، وغادي يكمل من الكاش. إلا السيرفر ما كيدعمش الاستئناف،
-خاص التحميل الجديد يوصل كامل بلا انقطاع؛ ما نقدروش نجبروا السيرفر يدعم Range.
-
-إلا تحميل قديم باقي فمسار آخر، تقدر تعطي `NEXUS_PARTIAL_ARCHIVE` للمثبّت
-فالأمر المحلي الموضّح فدليل التشغيل. كينسخ المرشح للكاش وكيخلي الأصل محفوظ.
-إلا `trap` القديم مسحو فعلاً، ما كايناش طريقة نرجعو نفس البايتات من داك الملف.
-ما خاصك تبدّل البصمة باش تقبل ملف خاسر.
-
-### كيفاش نتحققو منو بلا تنصيب؟
-
-```bash
-bash -n nexus/download.sh nexus/install.sh nexus/healthcheck.sh
-python3 -m unittest discover -s scripts/nexus -p 'test_download.py' -v
-```
-
-كاينين 20 اختبار جديد كيستعملو curl الحقيقي مع سيرفر HTTPS محلي وشهادة
-تجريبية موثوقة غير داخل الاختبارات. كيفحصو الانقطاع، خطأ 56، استئناف Range،
-رفض Range، فساد الملف، استيراد ملف قديم، القفل، وبقاء البيانات من بعد الفشل.
-هاد النجاح ماشي ادّعاء بأن أرشيف Nexus الحقيقي تحمّل ولا تنصّب فهاد الجلسة.
-
-## ٢. `nexus/healthcheck.sh`: واش Nexus واجد يقرا ويكتب؟
-
-### أشنو كيدير وعلاش؟
-
-كيصيفط جوج طلبات HTTP محليين. الأول كيشوف واش السيرفر واجد للقراءة، والثاني
-واش واجد للكتابة. صفحة الويب تقدر تحلّ والكتابة تكون واقفة بسبب القرص ولا
-شي مشكل آخر؛ بهاد السبب كنختابرو بجوج.
-
-### فوقاش نشغّلوه؟
-
-من بعد التنصيب، ومن بعد restart، ولا ملي نشر شي JAR ما بغاوش يخدم:
-
-```bash
-bash nexus/healthcheck.sh
-bash nexus/healthcheck.sh --wait
-```
-
-### شنو كيدير فالداخل؟
-
-كيستعمل `curl --fail --silent --show-error --max-time 4 --noproxy '*'` مع:
-
-```text
-http://127.0.0.1:8081/service/rest/v1/status
-http://127.0.0.1:8081/service/rest/v1/status/writable
-```
-
-`--noproxy '*'` كيخلّي هاد الطلبات تمشي مباشرة للواجهة المحلية. بلا `--wait`
-كيجرّب مرة وحدة. بها كيعيد المحاولة حتى 120 مرة، بـ `sleep 4` بين المحاولات،
-ومهلة عامة تقريباً عشر دقايق. كيتوقف فالمحاولة الجارية إلا دازت المهلة.
-
-### أشنو يقدر يوقع وكيفاش نتحقق؟
-
-إلا Nexus ما خدامش ولا ما كيقبلش الكتابة، كيرجع `exit 1`. إلا بجوج واجدين:
-
-```text
-Nexus is ready for reads and writes.
-```
-
-هاد الرسالة كتثبت الجاهزية HTTP، ما كتثبتش بوحدها وجود المستودعات ولا صلاحيات
-الحسابات. إلا فشل، شوف `systemctl status nexus` و`/var/lib/nexus/log/nexus.log`.
-الفحص مربوط عمداً بعنوان الجهاز اللي فيه Nexus؛ ماشي بأية قيمة ديال `NEXUS_URL`.
-
-## ٣. `scripts/nexus/manage.py`: الأوامر الرئيسية ديال المشروع
-
-### أشنو كيدير وعلاش؟
-
-هو المدخل الرئيسي لتجهيز المستودعات والحسابات، البناء، النشر والتحقق. كيستعمل
-الدوال ديال `nexus_api.py` للاتصال الآمن، وكيستعمل Maven للبناء الحقيقي.
-
-```bash
-python3 scripts/nexus/manage.py --help
-```
-
-خصنا `python3`، وBash/Maven للبناء، وJava المناسبة. الوضع الحالي ديال buy-02
-كيخدم بـ Java 17 ولا 21؛ الاختبارات تعاودات بـ Java 21 وهدف الترجمة 17.
-هادشي ما كيعنيش التوافق مع Java 11.
-
-### المتغيرات السرية قبل أوامر Nexus
-
-عنوان محلي مثلاً: `NEXUS_URL=http://127.0.0.1:8081`. الحسابات كتجي من:
-
-```text
-NEXUS_ADMIN_USERNAME / NEXUS_ADMIN_PASSWORD
-NEXUS_READ_USERNAME / NEXUS_READ_PASSWORD
-NEXUS_PUBLISH_USERNAME / NEXUS_PUBLISH_PASSWORD
-```
-
-`NEXUS_READ_EMAIL` و`NEXUS_PUBLISH_EMAIL` محتاجينهم ملي كيتصاوب حساب جديد.
-كلمات السر دخلهم بترمينال خاص باستعمال `read -rsp` ولا مخزن الأسرار.
-ما تديرش كلمات سر حقيقية فالأمثلة، وما تشغّلش `set -x`، وما تصيفطش قيم
-هاد المتغيرات فالشات. التفاصيل فـ [دليل التشغيل](NEXUS_MAVEN_RUNBOOK.md).
-
-### `audit`: فحص الملفات المحلية
-
-```bash
-python3 scripts/nexus/manage.py audit
-python3 scripts/nexus/manage.py audit --java11
-```
-
-كيقرا XML ديال ستة `pom.xml` وديال settings، وكيشوف الإحداثيات، النوع JAR،
-روابط النشر، تطابق IDs والـ mirror. ما كيحتاج لا Nexus لا كلمة سر.
-`--java11` كيرفض الإعداد الحالي حيث الآباء Spring Boot وهدف Java ما متوافقينش
-مع 11. هاد الفحص ماشي بناء Java 11؛ أدلة البناء الحقيقي موجودة فتقرير Java.
-النجاح كيطبع `VERIFIED local POM/settings XML...` ويرجع 0، والفشل كيرجع 1.
-
-### `provision`: تجهيز المستودعات والأدوار والحسابات
-
-```bash
-python3 scripts/nexus/manage.py provision
-python3 scripts/nexus/manage.py provision --apply
-```
-
-الأول كيقرا الحالة وكيعرض غير التغييرات المقترحة. الثاني كيدير هاد التغييرات
-فـ Nexus اللي حددتيه. بجوج محتاجين اتصال وحساب مسؤول ومتغيرات الحسابين الآخرين؛
-خطة التغيير ما كتطبعش كلمات السر.
-
-فالداخل كيستعمل REST: `GET` للفحص، `POST` لإنشاء الناقص و`PUT` لتحديث
-الإعدادات. كيقرا `nexus/repositories.json`، كيتأكد من الأنواع ومكان التخزين،
-وكيبقي المستودعات الموجودة والإعدادات الأخرى وأعضاء المجموعة الإضافيين.
-كيجهّز `maven-releases` و`maven-snapshots` و`maven-central` و`maven-public`.
-
-كيصاوب دور القارئ للمجموعة، ودور الناشر للمستودعين hosted. الناشر ما عندوش
-صلاحية الحذف ولا الإدارة. كينشئ غير الحسابات الناقصة وما كيبدّلش كلمات السر
-ديال الحسابات الموجودة. إلا لقى أدوار غير متوقعة كيوقف بلا ما يستولى على الحساب.
-
-كيعطّل anonymous access على مستوى Nexus كامل. هاد القرار كيأثر حتى على
-مستهلكين آخرين، بحال عملاء Docker ديال الزميل، اللي خاصهم يتصادقو بحساباتهم.
-ما كيبدّلش إعدادات مستودعات Docker ولا Jenkins.
-
-إلا وقع HTTP 401/403، راجع المصادقة والصلاحيات. إلا وقع خطأ فنص الكتابات،
-شي تغييرات تقدر تكون تدارو؛ صلّح السبب وعاود الفحص. ما كاينش transaction
-واحدة كترجع جميع إعدادات Nexus للور. تحقق بـ `verify-config` من بعد.
-
-### `verify-config`: واش الإعداد الفعلي مطابق؟
-
-```bash
-python3 scripts/nexus/manage.py verify-config
-```
-
-خاصو حساب المسؤول باش يقرا المستودعات والأدوار وحالة anonymous. كيقارن الحالة
-الموجودة بالإعداد المطلوب، وكيشوف الحسابات وحالة القراءة والكتابة. ما كيصاوبش
-الحسابات الناقصة وما كينشرش الملفات. إلا شي حاجة مختلفة كيخرج بخطأ.
-النجاح كيطبع روابط المستودعات و`VERIFIED readiness...`.
-
-### `build`: بناء واختبار الخدمة
-
-```bash
-python3 scripts/nexus/manage.py build gateway
-python3 scripts/nexus/manage.py build all
-# إلا Nexus مازال ما واجدش، فحص التطبيق بالمستودعات العادية:
-MAVEN_BIN=/usr/bin/mvn python3 scripts/nexus/manage.py build all --direct
-```
-
-كيشغّل `clean verify` داخل كل خدمة. افتراضياً كيستعمل `bash ./mvnw` الموجود
-فالخدمة؛ `MAVEN_BIN` كيخليك تختار برنامج Maven اللي مركّب عندك.
-بلا `--direct` كيضيف `-s nexus/maven/settings.xml` وكيحتاج حساب القارئ.
-`NEXUS_MAVEN_CACHE` كيختار كاش معزول إلا بغيتي؛ ما كيبدّلش settings العامة.
-
-كيحيد متغيرات حساب المسؤول من البيئة اللي كيدوز لـ Maven والاختبارات.
-`order-service` خاصها Docker للاختبارات اللي كتشغّل MongoDB بـ Testcontainers.
-الفشل كيوقف الأمر؛ ما كايناش محاولة لإخفاء test فاشل. النجاح كيبان فـ Maven
-بـ `BUILD SUCCESS` وملف JAR والتقارير تحت `target/`.
-النجاح بـ `--direct` ما كيثبتش استعمال Nexus.
-
-### `publish`: النشر الحقيقي، ومن بعد التحقق
-
-```bash
-python3 scripts/nexus/manage.py publish gateway
-python3 scripts/nexus/manage.py publish all
-```
-
-كنشغلوه غير ملي Nexus والمستودعات والصلاحيات واجدين. كيحتاج القارئ والناشر،
-ماشي حساب المسؤول. خاص المسؤول يكون تحقق من policy بـ `verify-config` قبل
-نشر release. ما تنشرش أول stable version إلا متأكد من الإحداثيات ومن `ALLOW_ONCE`.
-
-كيقرا version من POM. اللي سالية بـ `-SNAPSHOT` كتمشي لـ maven-snapshots؛
-الباقي كيمشي لـ maven-releases. قبل release كيشوف واش POM منشورة من قبل،
-وكيرفض يعاود ينشرها. سياسة Nexus كتمنع حتى تعويض ملف release موجود.
-
-كيشغّل `clean deploy`: Maven كيدوز الاختبارات والتغليف والتحقق قبل مرحلة
-deploy. من بعد كيشغّل التحقق ديال JAR وPOM من hosted ومن group وبصماتهم
-مقارنة مع الملفات المحلية. إلا upload نجح والتحقق فشل، النشر كيبقى غير مؤكد؛
-السكريبت ما كيحذفش داكشي اللي ترفع.
-
-النتيجة اللي كتثبت التوفر هي `CONFIRMED available: ...` من بعد نجاح التحقق
-ديال بجوج الملفات. إلا Nexus ما خدامش، ما نقدروش نقولو النشر نجح.
-
-### `verify-artifact`: التأكد من الملف المخزّن
-
-```bash
-python3 scripts/nexus/manage.py verify-artifact gateway --local
-python3 scripts/nexus/manage.py verify-artifact gateway --version 1.0.0
-```
-
-كيحسب SHA-256 ديال JAR وPOM من المستودع hosted، وكيقارنها مع التحميل من
-maven-public. مع `--local` كيقارن حتى مع JAR اللي فـ target وPOM المحلية،
-ولهذا النسخة المطلوبة خاصها تطابق النسخة المحلية.
-بالنسبة لـ snapshot كيقرا `maven-metadata.xml` باش يعرف الاسم الحقيقي اللي فيه
-الوقت ورقم البناء، ماشي يفترض أن الملف اسميتو غير `...-SNAPSHOT.jar`.
-
-إلا الملف ناقص، ولا metadata ما واضحةش، ولا البصمة مختلفة، كيرجع خطأ.
-كيحمّل البيانات للحساب ديال البصمة بلا ما يخلّف نسخة JAR جديدة فالقرص.
-إلا بغيتي تحمّل JAR وتحفظو، استعمل `resolve` ولا مثال curl فدليل التشغيل.
-
-### `set-version`: تبديل نسخة التطبيق بطريقة مضبوطة
-
-```bash
-python3 scripts/nexus/manage.py set-version gateway 1.0.0-SNAPSHOT
-git diff -- gateway/pom.xml
-```
-
-كيقبل `major.minor.patch` ومعاها اختيارياً `-SNAPSHOT`. كيستعمل:
-
-```text
-org.codehaus.mojo:versions-maven-plugin:2.19.1:set
--DnewVersion=... -DgenerateBackupPoms=false -DprocessAllModules=false
-```
-
-كيبدّل version ديال الخدمة، ماشي إصدار Spring Boot ولا المكتبات. خاصك تراجع
-التغيير وتعاود الاختبارات قبل النشر. الأمر ما كينشرش بوحدو وما كيديرش commit
-ولا tag. `set-version all ...` كيبدّل الخدمات كاملين؛ ما تستعملوش إلا قاصد
-تعطيهم نفس النسخة. إلا وقع فشل وسط `all`، راجع نسخ الخدمات اللي دازو قبل الفشل.
-
-### `resolve`: تحميل نسخة محددة باستعمال Maven
-
-```bash
-python3 scripts/nexus/manage.py resolve gateway --version 1.0.0
-```
-
-كيستعمل `maven-dependency-plugin:3.8.1:get` مع الإحداثيات الحقيقية:
-`com.buy01:gateway:1.0.0:jar`. `-Dtransitive=false` كيجيب JAR ديال التطبيق
-بلا شجرة التبعيات ديالو، و`-U` كيطلب تحديث معلومات Maven.
-الملف كيولي فالكاش المحلي اللي اختاريتي، مثلاً
-`$NEXUS_MAVEN_CACHE/com/buy01/gateway/1.0.0/gateway-1.0.0.jar`.
-إلا ما حددتيش كاش خاص، Maven كيستعمل الكاش العادي ديالو.
-
-إلا نسخة ما تنشراتش ولا حساب القارئ ما عندوش الحق، كيرجع Maven بخطأ.
-باش تثبت حتى البصمة اللي فالسيرفر، زيد `verify-artifact` لنفس النسخة.
-
-### `cache`: فحص الكاش ديال Nexus
-
-```bash
-python3 scripts/nexus/manage.py cache
-```
-
-خاصو المسؤول باش يقرا معلومات proxy والقارئ باش يحمّل من group. كيطلب
-`org.apache.commons:commons-lang3:3.17.0` جوج مرات من maven-public، وكيقارن
-البيانات مع maven-central ومع معلومات الملف المخزّن فـ REST search.
-كيستعمل Python HTTP مباشرة؛ الكاش المحلي ديال Maven ما كيدخلش فهاد الاختبار.
-
-إلا الملف كان مخزّن من قبل، كيقولها وما كيدّعيش أول cache miss. الفهرسة
-فـ Nexus تقدر تتأخر؛ إلا قال الملف ما تفهرسش، عاود من بعد وشوف request.log.
-النجاح كيثبت أن الطلبات والبصمات ومعلومات التخزين مطابقين؛ ما كيثبتش بوحدو
-أن الإنترنت مقطوع. دليل التشغيل فيه تجربة اختيارية كتوقف اتصالات proxy
-للخارج مؤقتاً من بعد أول fetch، وخص التنسيق مع الزميل قبلها.
-
-### `verify-access`: فحص الحقوق بالطلبات الحقيقية
-
-```bash
-python3 scripts/nexus/manage.py verify-access
-```
-
-كيشوف القارئ والناشر واش كيقدرو يحمّلو POM عمومية من المجموعة.
-من بعد كيتسنى 401 ولا 403 فهاد الحالات: تحميل بلا حساب، رفع من حساب القارئ،
-إدارة users من حساب الناشر. ما كيبعث حتى طلب DELETE.
-
-طلب الرفع ديال القارئ كيمشي لـ POM تجريبية منفصلة:
-
-```text
-com.buy01:nexus-access-probe-<uuid>:0.0.0-SNAPSHOT
-```
-
-ما كيعوّضش JAR ديال خدمة حقيقية. ولكن إلا الحقوق غلط والطلب تقبل، الفحص كيفشل
-وهاد POM التجريبية تقدر تكون تصاوبات؛ المسؤول خاصو يراجعها ويصلّح الدور.
-كل مرة كيتصاوب اسم جديد بـ `uuid4` باش حتى إلا الحقوق غلط ما يتعوّض حتى
-ملف تجريبي قديم. السكريبت ما كيدير حتى حذف. `verify-config` كيتأكد من
-إعدادات الأدوار أن صلاحية delete ما كايناش؛ هادشي ماشي تجربة DELETE حقيقية.
-باش نثبتو صلاحية الرفع المسموح به، خاص `publish` حقيقي لنسخة snapshot
-ولنسخة release مناسبة؛ رفض الطلبات بوحدو ما كافيش.
-
-## ٤. `scripts/nexus/nexus_api.py`: الدوال ديال الاتصال الآمن
-
-### أشنو كيدير وعلاش؟
-
-هاد ملف Python مساعد، ماشي أمر مستقل للتشغيل اليومي. `manage.py` كيستوردو.
-كيجمع الاتصال بـ HTTP، قراءة المتغيرات، مقارنة الإعدادات، تحديد الصلاحيات
-وبناء مسارات Maven باش ما نعاودوش نفس المنطق فكل أمر.
-
-### فوقاش كيتخدم وشنو فالداخل؟
-
-كيخدم ملي كتستعمل أوامر Nexus من `manage.py`. ما كيحتاجش `curl` ولا `jq`؛
-كيستعمل مكتبات Python العادية: `urllib` و`ssl` و`json` و`hashlib` وXML.
-
-- `required` كيرفض المتغير الناقص. `base_url` كيرفض كلمات السر داخل URL
-  والروابط البعيدة بلا HTTPS؛ HTTP مسموح غير للعناوين المحلية.
-- `Client` كيدير Basic authentication باستعمال القيم اللي فالبيئة. هاد Basic
-  encoding ماشي تشفير؛ HTTPS ولا SSH tunnel هو اللي كيحمي النقل.
-- `NoRedirect` كيمنع إرسال Authorization لعنوان تحويل. خاصنا الرابط النهائي
-  ديال Nexus وماشي رابط كيدوزنا لهوست آخر.
-- `ssl.create_default_context` كيتحقق من الشهادة. `NEXUS_CA_BUNDLE` كيقدر
-  يعطيه شهادة سلطة داخلية؛ ما كنطفيوش التحقق من TLS.
-- `open` و`json` كيصيفطو الطلبات ويرجعو أخطاء مفهومة بلا طباعة كلمة السر
-  ولا جواب السيرفر كامل. `digest` كيحسب SHA-256 على دفعات بلا تحميل JAR كاملة
-  فالذاكرة دفعة وحدة.
-- `repository_plan` و`differences` و`merge` كيفرقو بين الإعداد الحالي والمطلوب،
-  وكيمنعو تعويض مستودع بنوع آخر ولا نقل البيانات تلقائياً لـ blob store آخر.
-- `role_specs` كتعرّف الأدوار بأسماء صلاحيات محددة، بلا admin وبلا wildcard
-  وبلا delete.
-- `artifact_paths` كيقرا metadata ديال snapshots وكيختار JAR وPOM بلا classifier؛
-  ما كيخلطش JAR العادية مع `sources`. كيرفض قيم timestamp مشبوهة.
-
-### أشنو يقدر يوقع وكيفاش نتحقق؟
-
-HTTP 401 كيعني مشكل مصادقة؛ 403 كيعني الحق ما كاينش؛ 404 غالباً رابط ولا
-نسخة ناقصة. timeout ولا شهادة غير موثوقة كيوقفو الاتصال. ما تزيدش صلاحية
-admin للناشر باش تخبّي خطأ 403.
-
-ما خاصكش تشغّل `python3 scripts/nexus/nexus_api.py` وتستنى نتيجة من السيرفر:
-ما فيهش مدخل مستقل. تحقق منو بالاختبارات ومن بعد بالأوامر الحقيقية:
-
-```bash
-python3 -m unittest discover -s scripts/nexus -p 'test_*.py' -v
-python3 scripts/nexus/manage.py verify-config
-```
-
-الأمر الأول يقدر يدوز بلا Nexus. الثاني ما يقدرش ينجح حتى يكون Nexus حقيقي
-والمصادقة صالحة.
-
-## ٥. `scripts/nexus/test_nexus.py`: اختبارات السكريبتات بلا سيرفر
-
-### أشنو كيدير وعلاش؟
-
-كيستعمل `unittest` و`unittest.mock` باش يختبر منطق الحماية والتعامل مع الردود
-بلا حساب حقيقي وبلا اتصال بـ Nexus. كيحمي السلوك اللي خدم من قبل ملي كنبدلو
-شي حاجة فالسكريبتات.
-
-### فوقاش وكيفاش نشغّلوه؟
-
-من بعد أي تعديل فسكريبتات Nexus، ومن قبل ما نستعملهم على السيرفر:
-
-```bash
-python3 -m unittest discover -s scripts/nexus -p 'test_nexus.py' -v
-```
-
-### شنو كيختبر فالداخل؟
-
-الـ 29 اختبار الأصليين بقاو، وتزاد اختبار كيأكد أن فحص الحقوق ما كيبعثش
-DELETE وما كيعاودش يستعمل نفس اسم الملف التجريبي. الـ30 اختبار كيشوفو مثلاً: رفض HTTP البعيد وكلمات السر فالروابط،
-منع التحويلات، أخطاء بلا أسرار، عدم تكرار المستودعات، رفض اختلاف النوع
-والـ blob store، الحفاظ على إعدادات أخرى، عدم إعطاء admin/delete، وعدم تبديل
-كلمات السر القديمة. كيختبرو كذلك أسماء snapshots، رفض تعويض release، اختلاف
-البصمات، وإبعاد بيانات المسؤول على عملية Maven.
-
-بالنسبة لـ healthcheck، الاختبار كيصاوب أمر `curl` صغير ومؤقت كيمثل الجواب،
-وكيشوف واش غياب write readiness كيخلّي الفحص يفشل. هاد التمثيل ماشي سيرفر
-Nexus وما كيعتابرش تحقق من البنية التحتية.
-
-### أشنو يقدر يوقع وكيفاش نعرف النتيجة؟
-
-النتيجة المتوقعة إلا كلشي داز:
-
-```text
-Ran 30 tests
-OK
-```
-
-إلا بان `FAIL` ولا `ERROR` خاصنا نصلحو السبب بلا حذف الاختبار ولا تعطيلو.
-هاد 29 ماشي هما اختبارات التطبيق: التطبيق عندو 446 اختبار منفصلين كيحتاجو
-Maven، وشي اختبارات order-service كتحتاج Docker. نجاح هاد الملف ما كيثبتش
-النشر ولا RBAC فوق سيرفر حقيقي.
-
-## ٥ مكرر. `scripts/nexus/test_download.py`: اختبارات التحميل والاستئناف
-
-هاد السكريبت كيتشغّل من بعد أي تغيير فـ download.sh ولا مسار التحميل فالمثبّت.
-كيحتاج Python وBash وcurl وOpenSSL وحق فتح منفذ محلي عادي، ماشي sudo.
-كيصاوب أرشيف صغير وشهادة مؤقتة بـ `openssl`، وكيشغّل سيرفر HTTPS بـ Python،
-ومن بعد `subprocess` كيشغّل المساعد مع curl الحقيقي. الشهادة كتكون موثوقة
-غير فالعمليات التجريبية بـ CURL_CA_BUNDLE؛ إعدادات TLS العامة ما كتبدّلش.
-
-```bash
-python3 -m unittest discover -s scripts/nexus -p 'test_download.py' -v
-# جميع الاختبارات: 29 قديمة + 20 ديال التحميل
-python3 -m unittest discover -s scripts/nexus -p 'test_*.py' -v
-```
-
-كيقلّد سيرفر كيقطع الاتصال ولا كيرفض الاستئناف وكيشوف الملف قبل ومن بعد.
-كيختبر حتى فشل البصمة، منع الروابط الرمزية، ورفض محاولة ثانية فنفس الوقت.
-التوقفات بين المحاولات كتتسجل بأمر sleep تجريبي باش الاختبارات ما يطوّلوش؛
-الطلبات والبصمات وملفات التحميل حقيقيين فالمجلدات المؤقتة.
-
-إلا بان منع فتح socket فـ sandbox، خاص الاختبارات يتدارو خارج داك القيد بحساب
-عادي، ماشي تعطيل TLS ولا استعمال root. النتيجة الصحيحة هي 20 اختبار و`OK`؛
-الجميع كيعطي 49 اختبار و`OK`. الاختبار ما كينزّلش 500MB من Sonatype وما
-كيشغّلش Nexus. الجاهزية الحقيقية وكون العملية ديال nexus كيتفحصو من بعد التنصيب.
-
-## ٦. `nexus/env.example`: مثال كيتقرا بـ shell، ماشي سكريبت تثبيت
-
-كيشرح أسماء المتغيرات، وبلا كلمات سر حقيقية. `NEXUS_URL` هو العنوان؛ متغيرات
-القارئ والناشر كتدخل لـ Maven، وديال المسؤول غير للتجهيز والفحص الإداري.
-`MAVEN_BIN` و`NEXUS_MAVEN_CACHE` و`NEXUS_CA_BUNDLE` اختياريين.
-
-إلا بغيتي ملف خاص، دير نسخة خارج checkout ولا داخل `nexus/secrets/` اللي
-متجاهل فـ Git، بصلاحيات 0700 للمجلد و0600 للملف. عمّر القيم غير محلياً.
-كتقراه هكا، حيث `source` كينفّذ المحتوى: ما تقراش ملف ما موثوقش فيه.
-
-```bash
-set -a
-source /private/path/nexus.env
-set +a
-```
-
-إلا قريتي المثال الخاوي بوحدو، كلمات السر غتبقى ناقصة وأوامر Nexus غترفض
-تكمل. للتحقق، استعمل `verify-config`؛ ما تستعملش `env` ولا `printenv` باش
-تصوّر الأسرار ولا تطبعهم فاللوغات.
-
-## ٧. ملفات الإعداد اللي كتعاون السكريبتات
-
-هادو ماشي سكريبتات كتنفّذهم بوحدهم، ولكن مهم تعرف الدور ديالهم:
-
-| الملف | الدور ديالو وكيفاش نتحققو |
-| --- | --- |
-| `nexus/systemd/nexus.service` | كيشغّل `/opt/nexus/bin/nexus run` بحساب nexus؛ `ExecStartPost` كيتسنى healthcheck، وكيعاود التشغيل إلا طاح البرنامج. شوف `systemctl status nexus`. |
-| `nexus/systemd/nexus-healthcheck.service` | كيشغّل الفحص مرة وحدة بحساب nexus. شوف `systemctl status nexus-healthcheck.service`. |
-| `nexus/systemd/nexus-healthcheck.timer` | كيشغّل الفحص كل دقيقة من بعد مدة الإقلاع. شوف `systemctl list-timers nexus-healthcheck.timer`. ما كيعاودش تشغيل Nexus بوحدو إلا HTTP check فشل. |
-| `nexus/nexus.properties` | كيحدد `127.0.0.1:8081` وكيمنع إنشاء سكريبتات داخل السيرفر. شوف عنوان الاستماع بـ `ss` فوق الهوست. |
-| `nexus/repositories.json` | وصف المستودعات الأربعة: release لا يعاودش يتكتب، snapshot مسموح يتعاود، Central proxy والمجموعة. `verify-config` كيقارن الملف بالسيرفر. |
-| `nexus/maven/settings.xml` | mirror ديال dependencies/plugins، وتلاتة server IDs مربوطين بمتغيرات سرية. `audit` كيتأكد من التطابق؛ بناء بكاش جديد كيتحقق من الاتصال الحقيقي. |
-| `nexus/.gitignore` | كيحاول يبقي الأسرار وبيانات Nexus خارج Git. ما كيحيدش شي سر كان متتبع من قبل؛ خاص تبقى واعي بالملفات اللي كتزيد. |
-
-## ٨. مثال صغير باش تشرح خدمتك فالتقييم
-
-1. ورّي فحص محلي بـ `audit` ونتائج 29 اختبار ديال السكريبتات، و446 ديال التطبيق.
-2. شرح أن Java 11 مازال شرط غير محلول؛ ما تقولش كاين توافق بلا بناء واختبارات
-   ناجحين بـ JDK 11. [تقرير Java](JAVA11_COMPATIBILITY.md) فيه التفاصيل.
-3. إلا السيرفر تنصّب فعلاً، ورّي الحساب nexus، التخزين الدائم والمنفذ المحلي.
-4. ورّي المستودعات والأدوار بلا كلمات سر، ومن بعد `verify-config`.
-5. نشر snapshot ديال gateway، ومن بعد ورّي POM وJAR وبصماتهم بـ `verify-artifact`.
-6. جرّب `cache` و`verify-access`، وشرح الفرق بين كاش Maven وكاش Nexus.
-7. ورّي release غير إلا السياسة والنسخة مناسبين، وجرّب ترجع نسخة قديمة.
-
-إلا مازال السيرفر ما خدامش ولا credentials ناقصين، كتب `BLOCKED` وسبب المنع؛
-ما تصاوبش screenshot وهمية وما تسمّيش شي مرحلة ما تدارتش نجاح.
-الأوامر اليدوية المتبقية كاينة فـ [تكملة التحقق](NEXUS_COMPLETION_REPORT.md).
-
-
-## إصلاح ديال systemd ملي blob store كيبان غير للقراءة
-
-فهاد الحالة Nexus كان خدام بحساب `nexus`، والمجلدات ديال البيانات كانو
-`nexus:nexus` بصلاحيات `0750`. ما كان حتى سبب نديرو `chmod 777` ولا نبدلو
-المالك. المشكل بان غير داخل العزل ديال الخدمة: Java كتشوف الجذر `/` غير
-للقراءة بسبب `ProtectSystem=strict`، وحتى إلا `/var/lib/nexus` قابل للكتابة،
-`FileStore.isReadOnly` كترجع `true` حيث بجوج فوق نفس نظام الملفات.
-
-القالب `nexus/systemd/nexus.service` دابا فيه الإصلاح المقترح:
-
-```ini
-ProtectSystem=full
-ReadOnlyPaths=/opt /var /mnt /media /srv /run
-ReadWritePaths=/var/lib/nexus
-```
-
-`full` كيبقي ملفات النظام والإعدادات غير للقراءة، واللائحة الثانية كتحمي
-البرنامج وباقي مجلدات البيانات وملفات Windows. الاستثناء كيخلي غير بيانات
-Nexus قابلة للكتابة وسط `/var`. الحماية ديال المجلدات الشخصية و`PrivateTmp`
-و`NoNewPrivileges` باقين، والخدمة كتبقى بحساب nexus. الجذر كيبان قابل للكتابة
-على مستوى mount، ولكن الصلاحيات العادية ديالو ما كتعطيش الكتابة لحساب nexus.
-إلا زدنا مجلد جديد فالجذر خاصنا نراجعو الحماية ديالو، حيث `full` ماشي بحال
-`strict` فهاد النقطة.
-
-`install.sh` ما تبدلش: فالتنصيب الجديد كيستعمل هاد القالب. إلا Nexus منصّب
-من قبل، إعادة تشغيل السكريبت ما كتحدّثش ملف الخدمة. خاص drop-in صغير فـ
-`/etc/systemd/system/nexus.service.d/10-filestore.conf`، ومن بعد الموافقة
-الصريحة كيتدار `systemctl daemon-reload` و`systemctl restart nexus.service`.
-الأوامر الكاملة والمحتوى اللي خاص يتراجع كاينين فـ
-[دليل التشغيل](NEXUS_MAVEN_RUNBOOK.md#blob-store-incorrectly-read-only-under-systemd-wsl2-incident).
-ما خاصناش نحيدو البيانات ولا نعاودو نصاوبو المستودعات.
-
-إعادة التشغيل ضرورية باش العملية الجديدة تاخذ العزل الجديد. من بعد خاص
-نعاودو الفحص المقروء اللي تراجع: داخل الخدمة وخارجها خاص
-`FileStore.isReadOnly=false` و`Files.isWritable=true`. خاص حتى `/opt` و`/var`
-يبقاو غير للقراءة، والبيانات تبقى قابلة للكتابة. كنراقبو لوغات التشغيل الجديد
-على الأقل دقيقة من بعد الجاهزية باش نتأكدو أن التحذير ما رجعش.
-`healthcheck.sh` يقدر ينجح حتى والمشكل باقي، إذن خاص حتى نشر SNAPSHOT حقيقي
-وتحميلو ومقارنة SHA-256 باستعمال حسابات عندها غير الصلاحيات اللازمة.
-
-الحالة المسجلة دابا: المستخدم طبّق الإصلاح الموافق عليه وعاود شغّل Nexus.
-تفحصنا الإعدادات الفعلية ولقينا الجذر قابل للكتابة، و`/opt` و`/var` غير
-للقراءة، والبيانات قابلة للكتابة. ما بان حتى تحذير ديال blob store فالتشغيل
-الجديد خلال المدة اللي راقبنا. الاختبارات الـ49 و446 اختبار ديال التطبيق دازو
-بلا أخطاء ولا اختبارات متجاوزة. باقي خاص نتيجة فحص Java من التيرمينال ديال
-المستخدم وبيانات الدخول الخاصة باش نديرو النشر والتحميل الحقيقيين. ما نشرنا
-حتى artifact فهاد المرحلة وما كنقولوهاش نجحات حتى نشوفو التحقق الحقيقي.
+The official tag `sonatype/nexus3:3.98.1` contains Nexus `3.98.1-01`. Compose
+uses the image's default UID/GID 200, persistent named volume
+`buy02-nexus-data`, a health check for status and writable readiness, and a
+127.0.0.1-only published port. The temporary verified endpoint is 18081; the
+default is 8081. Compose creates the named volume when absent.
+`NEXUS_CONTAINER_NAME` and `NEXUS_VOLUME_NAME` allow isolated onboarding tests.
+Cutover is still pending approval.
+
+## Maven configuration and security
+
+The four desired repositories are declared in `nexus/repositories.json`:
+immutable hosted releases (`ALLOW_ONCE`), hosted snapshots (`ALLOW`), the Maven
+Central proxy and the public read group. `settings.xml` mirrors all dependency
+and plugin retrieval through `maven-public`; Maven gets credentials from
+environment variables, not from committed settings.
+
+`setup_credentials.py` privately prompts for admin, reader and publisher
+credentials, then creates `/tmp/nexus-migration-credentials.env` with mode
+0600. It does not overwrite an existing file. Keep it outside Git. Reader gets
+read access through the group; publisher gets read/add/edit on hosted
+repositories and no delete/admin privileges. Admin credentials are only for
+configuration. Current live repository and RBAC state is pending authenticated
+verification.
+
+## Existing tooling
+
+Run `python3 scripts/nexus/manage.py audit` for local XML/coordinate checks.
+`provision` prints a plan; `provision --apply` reconciles the plan. `verify-config`
+checks server state. `build all` builds/tests six services through Nexus;
+`publish all` deploys their current POM artifacts and downloads/checksums them.
+`resolve SERVICE` retrieves a selected version; `cache` verifies a Maven Central
+artifact through the proxy/group; `verify-access` checks allowed and denied
+operations. Review the runbook before applying configuration or publishing.
+
+The tooling test suite is `python3 -m unittest discover -s scripts/nexus -p
+'test_*.py' -v`. The current recorded result is 33 tests passed.
+
+## Backup and fallback
+
+The complete migration archive and original `/var/lib/nexus` are retained
+outside Git. Back up Docker only from a consistent stopped service; include all
+of `/nexus-data`, verify checksum/archive integrity, and test restores in a new
+volume. For rollback, stop Docker first and start the preserved native service.
+Never point both Nexus processes at one writable data directory. See the
+[runbook](NEXUS_MAVEN_RUNBOOK.md) for checks and current blockers.

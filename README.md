@@ -427,25 +427,61 @@ other people's passwords or using reset/delete-volume commands.
 
 ## Nexus Maven repository management
 
-The recommended Nexus deployment is the isolated Compose project in
-`nexus/docker-compose.yml`. It uses Sonatype's verified `sonatype/nexus3:3.98.1`
-release image and the persistent `buy02-nexus-data` Docker volume. The image's
-Nexus payload is 3.98.1-01, matching the existing native installation. Port 8081
-binds to IPv4 loopback only. See the [Docker migration and Maven runbook](docs/NEXUS_MAVEN_RUNBOOK.md)
-before starting it: migrating existing data requires a consistent backup and a
-stopped native service, and those operations require operator approval.
+Docker Compose is the supported Nexus deployment. `nexus/docker-compose.yml` pins
+Sonatype `sonatype/nexus3:3.98.1` (Nexus 3.98.1-01), uses the persistent
+`buy02-nexus-data` volume, and binds the host port to `127.0.0.1` only. The
+restored instance is currently verified on temporary port 18081. The native
+installation, its data and verified backup remain available for rollback.
 
-For a fresh, empty Docker deployment only:
+Inspect or operate the existing container with:
 
 ```bash
 docker compose -f nexus/docker-compose.yml config --quiet
-docker volume create buy02-nexus-data
-docker compose -f nexus/docker-compose.yml up -d --wait
-docker compose -f nexus/docker-compose.yml ps
+NEXUS_HOST_PORT=18081 docker compose -f nexus/docker-compose.yml up -d --wait --wait-timeout 900
+docker compos\e -f nexus/docker-compose.yml ps
+curl --fail http://127.0.0.1:18081/service/rest/v1/status
+curl --fail http://127.0.0.1:18081/service/rest/v1/status/writable
 ```
 
-See [the Nexus Maven runbook](docs/NEXUS_MAVEN_RUNBOOK.md),
-[actual verification results](docs/NEXUS_VERIFICATION.md), and
-[my Nexus part explained](docs/MY_NEXUS_PART_EXPLAINED.md).
-The existing Spring Boot 4.1 / Java 17 baseline conflicts with the requested
-Java 11 build requirement; the runbook records the blocker and evidence.
+Do not create a replacement volume, mount `/var/lib/nexus`, use `down -v`, or
+expose Nexus beyond loopback. Authenticated repository/RBAC verification and
+Maven publishing are pending; the final cutover to port 8081 requires explicit
+approval. Follow the [Nexus Maven runbook](docs/NEXUS_MAVEN_RUNBOOK.md), review
+[verified results and blockers](docs/NEXUS_VERIFICATION.md), and see the
+[completion report](docs/NEXUS_COMPLETION_REPORT.md).
+
+
+### Nexus first-time team setup
+
+On a fresh clone, `cd nexus && docker compose up -d --wait --wait-timeout 900`
+creates the persistent volume and starts localhost port 8081. Return to the
+repository root and bootstrap privately:
+
+```bash
+python3 scripts/nexus/setup_credentials.py --url http://127.0.0.1:8081 --file /tmp/buy02-nexus-team.env --bootstrap
+# Open Nexus, sign in privately, accept the EULA, and complete initial setup.
+python3 scripts/nexus/setup_credentials.py --file /tmp/buy02-nexus-team.env --reuse --finish
+```
+
+The helper creates private credentials outside Git, provisions four Maven
+repositories and least-privilege accounts, builds/tests/publishes the six
+SNAPSHOT services and verifies downloads, checksums, caching and RBAC. Admin
+credentials stay out of Maven subprocesses. Existing accounts are preserved;
+use their existing credentials rather than generating replacements.
+
+Maven reads dependencies through `maven-public`, which groups immutable releases,
+timestamped snapshots and the Maven Central proxy. The shared settings are
+`nexus/maven/settings.xml`. After loading private credentials, use
+`python3 scripts/nexus/manage.py publish all`, `cache`, `verify-access`, or
+`resolve discovery --version 0.0.1-SNAPSHOT`. Retrieve earlier published versions
+for rollback; never replace an immutable release. Back up all `/nexus-data`
+while stopped, verify the archive, and test restores in a separate volume.
+
+Run `docker compose -f nexus/docker-compose.yml config --quiet`,
+`python3 scripts/nexus/manage.py audit`, and the Nexus tooling tests before review.
+CI needs `NEXUS_URL`, `NEXUS_READ_USERNAME`, `NEXUS_READ_PASSWORD`,
+`NEXUS_PUBLISH_USERNAME`, `NEXUS_PUBLISH_PASSWORD`; the teammate owns application
+Docker images and pipeline integration. Remote CI needs a TLS endpoint or SSH
+tunnel; do not expose the loopback Nexus port publicly. The Default Secret
+Encryption Key warning is deferred; keys and secret storage are unchanged.
+See the runbook for onboarding, validation, troubleshooting, backup and rollback.

@@ -5,3 +5,10 @@ data/
 downloads/
 *.password
 settings.local.xml
+
+# Private local credentials and backup archives
+*.env
+*.tar
+*.tar.gz
+*.zip
+*.db

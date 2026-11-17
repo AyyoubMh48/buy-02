@@ -237,27 +237,5 @@ class NexusTests(unittest.TestCase):
         with patch('sys.stdout', new_callable=io.StringIO), self.assertRaisesRegex(NexusError, 'Java 11 incompatible'):
             manage.audit(argparse.Namespace(java11=True))
 
-    def test_health_requires_writable_endpoint(self):
-        # Fake curl uses HTTP paths to fail only the write-readiness endpoint.
-        with tempfile.TemporaryDirectory() as tmp:
-            stub = Path(tmp) / 'curl'
-            stub.write_text('#!/bin/bash\n[[ "$*" != *status/writable* ]]\n')
-            stub.chmod(0o755)
-            env = dict(os.environ, PATH=tmp + ':' + os.environ['PATH'])
-            result = subprocess.run(['bash', str(manage.ROOT / 'nexus/healthcheck.sh')], env=env, capture_output=True)
-            self.assertEqual(result.returncode, 1)
-            self.assertIn(b'readiness failed', result.stderr)
-
-    def test_health_succeeds_when_both_endpoints_ready(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            stub = Path(tmp) / 'curl'
-            stub.write_text('#!/bin/bash\nexit 0\n')
-            stub.chmod(0o755)
-            env = dict(os.environ, PATH=tmp + ':' + os.environ['PATH'])
-            result = subprocess.run(['bash', str(manage.ROOT / 'nexus/healthcheck.sh')], env=env, capture_output=True)
-            self.assertEqual(result.returncode, 0)
-            self.assertIn(b'ready for reads and writes', result.stdout)
-
-
 if __name__ == '__main__':
     unittest.main()
