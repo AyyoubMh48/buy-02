@@ -9,12 +9,12 @@ remain intact on the host as a rollback option.
 - Sonatype `sonatype/nexus3:3.98.1` provides Nexus `3.98.1-01`.
 - `buy02-nexus-data` is the persistent Docker volume; the container uses UID/GID
   200 and the host port is restricted to `127.0.0.1`.
-- The restored instance is healthy on `http://127.0.0.1:18081`. HTTP health,
+- The final instance is healthy on `http://127.0.0.1:8081`. HTTP health,
   write-readiness and Windows browser checks returned 200. The verified backup
   and original `/var/lib/nexus` are preserved.
 - Authenticated provisioning, all six SNAPSHOT publications, downloads/checksums,
-  Maven retrieval, caching and RBAC checks passed. Final port 8081 cutover
-  remains pending explicit approval. See the completion report for current evidence.
+  Maven retrieval, caching and RBAC checks passed. The approved final port 8081
+  cutover also passed every requested check. See the completion report.
 
 ## Start, stop and inspect
 
@@ -23,12 +23,12 @@ the live volume. From the repository root:
 
 ```bash
 docker compose -f nexus/docker-compose.yml config --quiet
-NEXUS_HOST_PORT=18081 docker compose -f nexus/docker-compose.yml up -d --wait --wait-timeout 900
+NEXUS_HOST_PORT=8081 docker compose -f nexus/docker-compose.yml up -d --wait --wait-timeout 900
 docker compose -f nexus/docker-compose.yml ps
 docker inspect buy02-nexus --format '{{.State.Health.Status}}'
 docker exec buy02-nexus id
-curl --fail http://127.0.0.1:18081/service/rest/v1/status
-curl --fail http://127.0.0.1:18081/service/rest/v1/status/writable
+curl --fail http://127.0.0.1:8081/service/rest/v1/status
+curl --fail http://127.0.0.1:8081/service/rest/v1/status/writable
 docker compose -f nexus/docker-compose.yml logs --tail=100 nexus
 docker compose -f nexus/docker-compose.yml stop
 docker compose -f nexus/docker-compose.yml start
@@ -40,11 +40,12 @@ remove `buy02-nexus-data`, or mount `/var/lib/nexus` into the container. The
 health check tests both Nexus status and writable readiness. The named volume
 survives container replacement; do not remove it during routine restart.
 
-### Final cutover
+### Completed final cutover
 
-8081 was previously confirmed free, but cutover has not been approved or
-performed. After authenticated checks are complete, obtain explicit operator
-approval. Then recreate the Compose service with the default port and verify:
+The operator approved this recreation and it completed on 2026-11-17.
+Port 8081 is now in use by Nexus. The following sequence is retained as the
+cutover record; do not rerun it as a routine health check. Future disruptive
+changes require their own approval:
 
 ```bash
 test -z "$(ss -H -ltn 'sport = :8081')"
@@ -93,13 +94,14 @@ python3 scripts/nexus/setup_credentials.py
 The helper privately prompts for admin, reader and publisher usernames and
 passwords, plus the service-account email addresses. It saves
 `/tmp/nexus-migration-credentials.env` with mode 0600 and refuses to overwrite
-it. The URL is set to `http://127.0.0.1:18081`. Never print, commit or send the
+it. New files default to `http://127.0.0.1:8081`. Never print, commit or send the
 file. Subsequent commands load it without echoing values:
 
 ```bash
 set -a
 source /tmp/nexus-migration-credentials.env
 set +a
+export NEXUS_URL=http://127.0.0.1:8081
 python3 scripts/nexus/manage.py provision
 ```
 
@@ -210,8 +212,8 @@ cd ..
 ```
 
 Compose creates the named volume when absent. No Windows username, WSL path or
-pre-existing volume is required. For the currently migrated host, keep using
-18081 until approved cutover; do not run this fresh-host sequence there.
+pre-existing volume is required. The current migrated host already uses
+8081; do not run the fresh-host bootstrap there.
 
 Bootstrap a fresh container without printing its generated password:
 
@@ -243,19 +245,22 @@ For existing accounts, supply their existing passwords; provisioning does not
 reset them. To resume, use the same command with `--reuse --finish`; publishing
 may produce another timestamped SNAPSHOT build.
 
-For the existing migrated instance, the one local continuation command is:
+For future publishing on the migrated instance, override the old saved endpoint
+in memory. This command builds and republishes; it was NOT needed for cutover
+verification and should not be rerun solely to inspect stored artifacts:
 
 ```bash
-python3 scripts/nexus/setup_credentials.py --finish
+python3 scripts/nexus/setup_credentials.py --reuse --url http://127.0.0.1:8081 --finish
 ```
 
-After cutover, load the file and set `export NEXUS_URL=http://127.0.0.1:8081`
+The preserved migration credential file can still contain port 18081. Load it
+and set `export NEXUS_URL=http://127.0.0.1:8081`
 in the shell; do not replace the private file automatically. Use the same
 settings and commands for either port.
 
 ## Teammate CI handoff
 
-Base URL: `http://127.0.0.1:8081` on the Nexus host after cutover. Artifact
+Base URL: `http://127.0.0.1:8081` on the Nexus host. Artifact
 endpoints append `/repository/maven-public/`, `/repository/maven-releases/`,
 `/repository/maven-snapshots/` or `/repository/maven-central/`. A container/remote
 runner cannot use its own localhost to reach the host; the CI owner must arrange
@@ -314,7 +319,7 @@ If provisioning rejects a service password shorter than 16 characters, repair
 only the invalid entries and resume in the same private terminal:
 
 ```bash
-python3 scripts/nexus/setup_credentials.py --reuse --repair-service-passwords && python3 scripts/nexus/setup_credentials.py --reuse --finish
+python3 scripts/nexus/setup_credentials.py --reuse --url http://127.0.0.1:8081 --repair-service-passwords && python3 scripts/nexus/setup_credentials.py --reuse --url http://127.0.0.1:8081 --finish
 ```
 
 The repair performs a read-only administrator account lookup. Existing Nexus
@@ -324,3 +329,9 @@ at least 16 characters and confirmation; Enter generates a secure password
 without displaying it. Both repairs must complete before the private file is
 replaced atomically with mode 0600. Cancellation leaves the original file
 unchanged. No Nexus password reset is performed.
+
+
+The native archive represents the pre-publication migration state. Artifacts
+published since migration reside in the Docker volume, so retain it and make a
+consistent Docker backup before choosing the native fallback. Restoring native
+service alone does not restore later Docker-hosted publications.

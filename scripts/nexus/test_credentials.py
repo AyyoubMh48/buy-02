@@ -159,3 +159,17 @@ class CredentialTests(unittest.TestCase):
             with self.assertRaisesRegex(NexusError, 'inventory verification failed'):
                 setup_credentials.verify_snapshot_inventory(client)
         self.assertNotIn('PASS', output.getvalue())
+
+    def test_reuse_url_override_is_in_memory_and_does_not_rewrite_credentials(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path, original = self.repair_fixture(directory)
+            before = path.read_bytes()
+            with patch('sys.argv', ['setup', '--file', str(path), '--reuse', '--url',
+                                    'http://127.0.0.1:8081', '--finish']), \
+                 patch('setup_credentials.finish') as finish:
+                self.assertEqual(setup_credentials.main(), 0)
+            values = finish.call_args.args[0]
+            self.assertEqual(values['NEXUS_URL'], 'http://127.0.0.1:8081')
+            for key in original.keys() - {'NEXUS_URL'}:
+                self.assertEqual(values[key], original[key])
+            self.assertEqual(path.read_bytes(), before)

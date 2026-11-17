@@ -11,12 +11,12 @@ Compose runs the pinned official Sonatype `3.98.1` image (Nexus `3.98.1-01`),
 using UID/GID 200 and the persistent `buy02-nexus-data` volume. The host
 binding is `127.0.0.1` only. The restored Docker service passed health,
 read/write readiness, Windows HTTP, and blob-store writability checks on
-temporary port 18081. The native installation, its `/var/lib/nexus` data and
+final port 8081. The native installation, its `/var/lib/nexus` data and
 verified backup remain available for rollback.
 
 Authenticated repository/user/role inventory, six SNAPSHOT publications, caching,
 artifact checksum/retrieval and RBAC checks passed. Final port 8081 cutover
-requires explicit approval. See the [completion status](NEXUS_COMPLETION_REPORT.md).
+was explicitly approved and completed successfully. See the [completion status](NEXUS_COMPLETION_REPORT.md).
 
 ## Repository and Maven flow
 
@@ -41,8 +41,7 @@ caching and exercises access controls. All six 0.0.1-SNAPSHOT publications are c
 ## Operations and rollback
 
 Use `docker compose -f nexus/docker-compose.yml` for startup, health checks,
-logs and stop/start. The temporary port override is `NEXUS_HOST_PORT=18081`;
-the eventual default is 8081. Never expose Nexus on a non-loopback address or
+logs and stop/start. The verified endpoint and Compose default are port 8081. Never expose Nexus on a non-loopback address or
 remove the named volume during routine operations.
 
 The native service and backup are fallback assets. Stop Docker before starting

@@ -25,7 +25,7 @@ From the repository root:
 
 ```bash
 docker compose -f nexus/docker-compose.yml config --quiet
-NEXUS_HOST_PORT=18081 docker compose -f nexus/docker-compose.yml up -d --wait --wait-timeout 900
+NEXUS_HOST_PORT=8081 docker compose -f nexus/docker-compose.yml up -d --wait --wait-timeout 900
 docker compose -f nexus/docker-compose.yml ps
 docker compose -f nexus/docker-compose.yml logs --tail=100 nexus
 docker inspect buy02-nexus --format '{{.State.Health.Status}}'
@@ -35,10 +35,9 @@ docker exec buy02-nexus id
 The official tag `sonatype/nexus3:3.98.1` contains Nexus `3.98.1-01`. Compose
 uses the image's default UID/GID 200, persistent named volume
 `buy02-nexus-data`, a health check for status and writable readiness, and a
-127.0.0.1-only published port. The temporary verified endpoint is 18081; the
-default is 8081. Compose creates the named volume when absent.
+127.0.0.1-only published port. The verified final endpoint and Compose default are 8081. Compose creates the named volume when absent.
 `NEXUS_CONTAINER_NAME` and `NEXUS_VOLUME_NAME` allow isolated onboarding tests.
-Cutover is still pending approval.
+Cutover to 8081 was approved and verified.
 
 ## Maven configuration and security
 
@@ -66,7 +65,7 @@ artifact through the proxy/group; `verify-access` checks allowed and denied
 operations. Review the runbook before applying configuration or publishing.
 
 The tooling test suite is `python3 -m unittest discover -s scripts/nexus -p
-'test_*.py' -v`. The current recorded result is 44 tests passed.
+'test_*.py' -v`. The current recorded result is 45 tests passed.
 
 ## Backup and fallback
 

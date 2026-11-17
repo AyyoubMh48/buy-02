@@ -1,24 +1,25 @@
 # Nexus/Maven completion report
 
 Updated: 2026-11-17. Owner: **Anas**. The Nexus/Maven implementation is complete
-and verified on temporary localhost port 18081. Final port 8081 cutover is
-prepared but has not been executed; container recreation requires approval.
+and verified on final localhost port 8081. The explicitly approved cutover
+completed successfully; the Nexus container was recreated with the same image
+and persistent volume.
 
 ## Verified results
 
 | Check | Result | Evidence |
 | --- | --- | --- |
 | Six full application builds/tests | PASS | Previous host-access clean verify: 446 tests, zero failures/errors/skips; Java, Spring Boot and POM versions preserved |
-| Nexus tooling tests | PASS | 44 tests, including cache path/checksum/retry and SNAPSHOT inventory regressions |
+| Nexus tooling tests | PASS | 45 tests, including cache path/checksum/retry and SNAPSHOT inventory regressions |
 | Compose validation | PASS | Existing and final localhost port configurations validated |
 | Maven configuration audit | PASS | Six POM coordinates, deployment IDs and settings mirror checked |
 | Administrator authentication/configuration | PASS | Four required Maven repositories, reader/publisher accounts, roles and anonymous-access restrictions verified |
 | Existing SNAPSHOT inventory | PASS | All six found through repository-scoped Maven groupId/artifactId/baseVersion queries |
 | Artifact downloads/checksums | PASS | JAR and POM bytes match hosted/group/local SHA-256 for all six |
-| Maven version retrieval | PASS | All six 0.0.1-SNAPSHOT artifacts resolved through Nexus in the prior authenticated verification |
+| Maven version retrieval | PASS | All six 0.0.1-SNAPSHOT artifacts resolved through Nexus on final port 8081 after cutover |
 | Proxy caching | PASS | Repeated group/proxy downloads match the stored maven-central asset's SHA-256 |
 | Non-destructive RBAC | PASS | Reader/publisher downloads allowed; anonymous download, reader upload and publisher user administration denied; no DELETE requests |
-| Runtime | PASS | Healthy, writable, non-root UID/GID 200, 127.0.0.1:18081 with buy02-nexus-data |
+| Runtime | PASS | Healthy, writable, non-root UID/GID 200, 127.0.0.1:8081 with buy02-nexus-data |
 | Git secret/data scans | PASS | Current tracked content/path checks found no private credential files, archives, databases or secret signatures |
 | Scoped diff whitespace | PASS | Nexus files and updated documentation pass |
 | Entire worktree whitespace | FAIL | Pre-existing unrelated CRLF/trailing whitespace; those files were not modified by this cleanup |
@@ -52,9 +53,9 @@ now uses `maven.baseVersion`, which correctly finds timestamped SNAPSHOT builds.
 - **Ayoub — integration responsibility:** application Dockerfiles/images,
   Docker image publishing/retrieval and CI/CD integration. No application
   Dockerfiles or CI pipelines were modified by this cleanup.
-- **Approval pending:** recreate only the Nexus container on port 8081, retain
-  buy02-nexus-data, then recheck Windows HTTP, health, UID/GID, writability and
-  all six stored artifacts. The running container remains on port 18081.
+- **Cutover completed:** only Nexus was recreated on localhost 8081. The same
+  buy02-nexus-data volume and image are retained. Windows HTTP, readiness,
+  writability, UID/GID 200, all six artifact checksums, caching and RBAC passed.
 
 CI inputs: NEXUS_URL, NEXUS_READ_USERNAME, NEXUS_READ_PASSWORD,
 NEXUS_PUBLISH_USERNAME and NEXUS_PUBLISH_PASSWORD. Administrator credentials
@@ -67,13 +68,18 @@ The native installation and `/var/lib/nexus` are preserved. The verified archive
 `/var/backups/nexus/native-3.98.1-01-20261117T115025Z.tar` remains available;
 recorded SHA-256:
 `6e191d2ae6b34e798b0ecef0b5c9f3b4935ae1101e66a125802f0ffeb169dfdf`.
-No container restart, port change, credential reset or data migration occurred
-in this cleanup. No artifacts, volumes or backups were deleted.
+The approved Nexus container recreation and port mapping change were executed.
+Read-only before/after hashes and metadata prove the complete native installation
+and data are unchanged. The backup SHA-256 still matches the verified archive;
+the native service remains inactive. Docker volume name, driver, mountpoint and
+creation timestamp are unchanged. No artifacts, volumes or backups were deleted.
+The private credential file is byte-for-byte unchanged; endpoint overrides are
+in memory only. No credentials were reset.
 
 Fresh Compose startup, private admin setup and idempotent provisioning were
 verified in the separate onboarding instance on port 28081. Its end-to-end
 publish test remains subject to operator EULA acceptance; it is distinct from
-the fully verified migrated instance on 18081. The test volume is retained.
+the fully verified migrated instance on 8081. The test volume is retained.
 
 The Default Secret Encryption Key warning is deferred security work. Encryption
 keys and secret storage were not changed. Full-worktree whitespace cleanup is
@@ -81,4 +87,17 @@ outside Anas's Nexus scope; stage only the reviewed Nexus changes. No automatic
 commit, push or merge was performed.
 
 See [NEXUS_MAVEN_RUNBOOK.md](NEXUS_MAVEN_RUNBOOK.md) for onboarding, backup,
-rollback, CI endpoints and exact cutover commands awaiting approval.
+rollback, CI endpoints and the completed cutover record.
+
+## Post-cutover results
+
+All requested post-cutover checks PASS, including actual Maven retrieval of all
+six versions through port 8081. Windows HTTP returned 200, both status
+and writable endpoints returned 200, and no blob-store read-only warnings were
+found in the recreated container logs. Each service's JAR and POM SHA-256 matches
+its hosted download, group download and local build. No artifacts were
+republished. The existing unmanaged-volume Compose warning was informational;
+identity checks confirm the original volume was reused rather than replaced.
+There are no remaining cutover verification failures. The existing worktree
+whitespace issues, Ayoub's CI/image integration and deferred encryption warning
+remain separate from the completed deployment.

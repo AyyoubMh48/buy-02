@@ -428,10 +428,11 @@ other people's passwords or using reset/delete-volume commands.
 ## Nexus Maven repository management
 
 Anas's Nexus/Maven implementation is complete and verified on
-`http://127.0.0.1:18081`. Docker Compose runs the pinned official
+`http://127.0.0.1:8081`. Docker Compose runs the pinned official
 `sonatype/nexus3:3.98.1` image (Nexus 3.98.1-01), as UID/GID 200, with persistent
-volume `buy02-nexus-data` and localhost-only access. Final cutover to port 8081
-is prepared and requires explicit approval before container recreation.
+volume `buy02-nexus-data` and localhost-only access. The approved final cutover
+to port 8081 passed health, Windows access, storage,
+artifact checksum, caching and RBAC checks.
 
 ### Team responsibilities
 
@@ -439,7 +440,6 @@ is prepared and requires explicit approval before container recreation.
 | --- | --- |
 | **Anas** | **Completed:** Nexus Compose deployment, Maven repository provisioning, six SNAPSHOT publications, artifact retrieval/checksums, dependency proxy caching, version retrieval, least-privilege reader/publisher accounts and RBAC verification |
 | **Ayoub** | Application Dockerfiles/images, Docker image publishing/retrieval and CI/CD pipeline integration; these are separate from the Nexus service's Compose deployment |
-| **Operator approval** | Final port 8081 cutover; native installation and verified backup remain available for rollback |
 
 ### Verified Maven results
 
@@ -449,7 +449,7 @@ gateway, user-service, product-service, media-service and order-service
 Downloads, local/hosted/group SHA-256 comparisons, Maven retrieval, dependency
 caching and RBAC passed. The final inventory query now uses `maven.baseVersion`
 to find timestamped SNAPSHOT components. All 446 application tests passed in the
-previous full build; 44 Nexus tooling tests pass. The latest inventory/checksum
+previous full build; 45 Nexus tooling tests pass. The latest inventory/checksum
 checks used the existing artifacts without republishing.
 
 | Endpoint under the Nexus base URL | Purpose |
@@ -464,8 +464,8 @@ Inspect the existing deployment without changing its ports:
 ```bash
 docker compose -f nexus/docker-compose.yml config --quiet
 docker compose -p nexus -f nexus/docker-compose.yml ps
-curl --fail http://127.0.0.1:18081/service/rest/v1/status
-curl --fail http://127.0.0.1:18081/service/rest/v1/status/writable
+curl --fail http://127.0.0.1:8081/service/rest/v1/status
+curl --fail http://127.0.0.1:8081/service/rest/v1/status/writable
 python3 scripts/nexus/manage.py audit
 python3 -m unittest discover -s scripts/nexus -p 'test_*.py' -v
 ```
@@ -514,8 +514,7 @@ retrieve an earlier published version for rollback.
 
 Ayoub's CI integration needs `NEXUS_URL`, `NEXUS_READ_USERNAME`,
 `NEXUS_READ_PASSWORD`, `NEXUS_PUBLISH_USERNAME` and `NEXUS_PUBLISH_PASSWORD`.
-Keep passwords in the CI credential store, not Git. Use the final host URL only
-after cutover. A remote/container runner needs a TLS endpoint or SSH tunnel;
+Keep passwords in the CI credential store, not Git. The final host URL is `http://127.0.0.1:8081`. A remote/container runner needs a TLS endpoint or SSH tunnel;
 its own localhost cannot reach the Nexus host. Keep the Nexus bind loopback-only.
 
 ### Backup, rollback and remaining operations
@@ -527,6 +526,12 @@ Docker. The preserved native data and verified backup remain rollback assets;
 stop Docker before starting the native fallback. Default Secret Encryption Key
 warning remediation is deferred; no encryption keys or secret storage changed.
 
-See the [runbook and approval-gated cutover](docs/NEXUS_MAVEN_RUNBOOK.md),
+See the [runbook and completed cutover](docs/NEXUS_MAVEN_RUNBOOK.md),
 [completion report](docs/NEXUS_COMPLETION_REPORT.md) and
 [script guide](docs/NEXUS_SCRIPTS_EXPLAINED.md).
+
+The private credential file was preserved during cutover. If its stored URL is
+still 18081, set `export NEXUS_URL=http://127.0.0.1:8081` after loading it for
+individual Maven commands. The helper also accepts `--reuse --url
+http://127.0.0.1:8081` as an in-memory override; adding `--finish` republishes,
+so use individual verification commands for already published artifacts.

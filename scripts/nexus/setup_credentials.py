@@ -164,7 +164,7 @@ def finish(values):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--file', type=Path, default=DESTINATION)
-    parser.add_argument('--url', default='http://127.0.0.1:18081')
+    parser.add_argument('--url', help='Endpoint override in memory; new files default to http://127.0.0.1:8081')
     parser.add_argument('--bootstrap', action='store_true', help='Fresh local container only: read generated admin password privately and replace it with your prompted password')
     parser.add_argument('--container', default='buy02-nexus')
     parser.add_argument('--reuse', action='store_true', help='Load existing mode-0600 file without replacing it')
@@ -178,6 +178,8 @@ def main():
             raise NexusError('--repair-service-passwords requires --reuse.')
         if args.reuse:
             values = load_private(args.file)
+            if args.url:
+                values['NEXUS_URL'] = base_url(args.url)
             if args.repair_service_passwords:
                 values = repair_service_passwords(args.file, values)
         else:
@@ -189,7 +191,7 @@ def main():
             if path.is_relative_to(ROOT):
                 raise NexusError('Choose a credential path outside the checkout.')
             print('Use the current admin password. Rotate any exposed password in Nexus first.')
-            values = {'NEXUS_URL': base_url(args.url)}
+            values = {'NEXUS_URL': base_url(args.url or 'http://127.0.0.1:8081')}
             for prefix, default in zip(PREFIXES, ('admin', 'buy02-reader', 'buy02-publisher')):
                 username = hidden(prefix + ' username (hidden; Enter for default): ', default)
                 if not re.fullmatch(r'[A-Za-z0-9_.-]+', username):
