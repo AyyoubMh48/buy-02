@@ -424,3 +424,114 @@ Legacy `jenkins-lab/compose.yml` also supports the original privileged DinD lab;
 host-daemon controller file explicitly. Preserve legacy named volumes when updating
 an existing installation; a new PC should follow the fresh setup without importing
 other people's passwords or using reset/delete-volume commands.
+
+## Nexus Maven repository management
+
+Anas's Nexus/Maven implementation is complete and verified on
+`http://127.0.0.1:8081`. Docker Compose runs the pinned official
+`sonatype/nexus3:3.98.1` image (Nexus 3.98.1-01), as UID/GID 200, with persistent
+volume `buy02-nexus-data` and localhost-only access. The approved final cutover
+to port 8081 passed health, Windows access, storage,
+artifact checksum, caching and RBAC checks.
+
+### Team responsibilities
+
+| Owner | Responsibility and status |
+| --- | --- |
+| **Anas** | **Completed:** Nexus Compose deployment, Maven repository provisioning, six SNAPSHOT publications, artifact retrieval/checksums, dependency proxy caching, version retrieval, least-privilege reader/publisher accounts and RBAC verification |
+| **Ayoub** | Application Dockerfiles/images, Docker image publishing/retrieval and CI/CD pipeline integration; these are separate from the Nexus service's Compose deployment |
+
+### Verified Maven results
+
+All six services publish `0.0.1-SNAPSHOT` to `maven-snapshots`: discovery,
+gateway, user-service, product-service, media-service and order-service
+(the last two artifact IDs are `media` and `order-service`, respectively).
+Downloads, local/hosted/group SHA-256 comparisons, Maven retrieval, dependency
+caching and RBAC passed. The final inventory query now uses `maven.baseVersion`
+to find timestamped SNAPSHOT components. All 446 application tests passed in the
+previous full build; 45 Nexus tooling tests pass. The latest inventory/checksum
+checks used the existing artifacts without republishing.
+
+| Endpoint under the Nexus base URL | Purpose |
+| --- | --- |
+| `/repository/maven-public/` | Authenticated dependency/plugin read group |
+| `/repository/maven-releases/` | Immutable hosted releases (`ALLOW_ONCE`) |
+| `/repository/maven-snapshots/` | Hosted timestamped SNAPSHOT builds |
+| `/repository/maven-central/` | Maven Central proxy/cache |
+
+Inspect the existing deployment without changing its ports:
+
+```bash
+docker compose -f nexus/docker-compose.yml config --quiet
+docker compose -p nexus -f nexus/docker-compose.yml ps
+curl --fail http://127.0.0.1:8081/service/rest/v1/status
+curl --fail http://127.0.0.1:8081/service/rest/v1/status/writable
+python3 scripts/nexus/manage.py audit
+python3 -m unittest discover -s scripts/nexus -p 'test_*.py' -v
+```
+
+### First-time setup on another developer's machine
+
+Use a fresh clone with Docker Compose v2, Python 3 and the existing Java/Maven
+requirements. No personal Windows paths, existing database or private files
+are needed:
+
+```bash
+cd nexus
+docker compose up -d --wait --wait-timeout 900
+cd ..
+python3 scripts/nexus/setup_credentials.py --url http://127.0.0.1:8081 --file /tmp/buy02-nexus-team.env --bootstrap
+# Sign in privately, accept the EULA and complete initial setup in the browser.
+python3 scripts/nexus/setup_credentials.py --file /tmp/buy02-nexus-team.env --reuse --finish
+```
+
+Compose creates its volume when absent. The bootstrap helper captures the
+initial password privately and replaces it with the prompted new password;
+credentials are stored outside Git with mode 0600. Use bootstrap only on a
+fresh instance. Existing accounts retain their passwords. The finish workflow
+provisions idempotently, builds/tests/deploys six SNAPSHOT artifacts and verifies
+them. It publishes new timestamped builds, so do not rerun it just to inspect
+already verified artifacts. See the runbook for individual verification commands.
+
+### Maven, security and CI handoff
+
+`nexus/maven/settings.xml` reads credentials from the environment and mirrors
+dependency/plugin resolution through `maven-public`. After securely loading
+private credentials, use these existing commands as needed:
+
+```bash
+python3 scripts/nexus/manage.py publish all
+python3 scripts/nexus/manage.py verify-artifact discovery --local
+python3 scripts/nexus/manage.py resolve discovery --version 0.0.1-SNAPSHOT
+python3 scripts/nexus/manage.py cache
+python3 scripts/nexus/manage.py verify-access
+```
+
+Reader can resolve dependencies; publisher adds hosted upload/edit permissions
+without delete or administration. Maven never receives administrator credentials.
+Keep immutable releases unchanged; use new release versions for fixes and
+retrieve an earlier published version for rollback.
+
+Ayoub's CI integration needs `NEXUS_URL`, `NEXUS_READ_USERNAME`,
+`NEXUS_READ_PASSWORD`, `NEXUS_PUBLISH_USERNAME` and `NEXUS_PUBLISH_PASSWORD`.
+Keep passwords in the CI credential store, not Git. The final host URL is `http://127.0.0.1:8081`. A remote/container runner needs a TLS endpoint or SSH tunnel;
+its own localhost cannot reach the Nexus host. Keep the Nexus bind loopback-only.
+
+### Backup, rollback and remaining operations
+
+Back up all `/nexus-data` while Nexus is stopped during an approved maintenance
+window. Verify the checksum/archive and restore only into a separate volume.
+Never use `down -v`, delete the existing volume, or mount `/var/lib/nexus` into
+Docker. The preserved native data and verified backup remain rollback assets;
+stop Docker before starting the native fallback. Default Secret Encryption Key
+warning remediation is deferred; no encryption keys or secret storage changed.
+
+See the [runbook and completed cutover](docs/NEXUS_MAVEN_RUNBOOK.md),
+[completion report](docs/NEXUS_COMPLETION_REPORT.md) and
+[script guide](docs/NEXUS_SCRIPTS_EXPLAINED.md).
+
+The private credential file was preserved during cutover. If its stored URL is
+still 18081, set `export NEXUS_URL=http://127.0.0.1:8081` after loading it for
+individual Maven commands. The helper also accepts `--reuse --url
+http://127.0.0.1:8081` as an in-memory override; adding `--finish` republishes,
+so use individual verification commands for already published artifacts.
