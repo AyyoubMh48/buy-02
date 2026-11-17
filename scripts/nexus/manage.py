@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import time
 from urllib.parse import urlencode
 from uuid import uuid4
 from xml.etree import ElementTree as ET
@@ -218,7 +219,9 @@ def cached_asset(admin, group, artifact, version, path):
     while True:
         result = admin.json('GET', '/search/assets?' + urlencode(params))
         for item in result['items']:
-            if item['path'] == path:
+            # Nexus 3.98 can return a leading slash in the stored asset path.
+            if (item.get('repository') == 'maven-central'
+                    and item['path'].removeprefix('/') == path.removeprefix('/')):
                 return item
         token = result.get('continuationToken')
         if not token:
@@ -236,15 +239,22 @@ def cache(args):
     group_path = '/repository/maven-public/' + path
     first = reader.digest(group_path)
     second = reader.digest(group_path)
-    # Search indexing is asynchronous; verify the proxy bytes as well as index evidence.
+    # Verify downloaded bytes AND Nexus's repository-scoped stored asset record.
     proxy_hash = admin.digest('/repository/maven-central/' + path)
-    after = cached_asset(admin, group, artifact, version, path)
     if first != second or first != proxy_hash:
         raise NexusError('Group and proxy checksums differ.')
+    after = None
+    # Four lookups, at most seven seconds of backoff; no rebuild or repository changes.
+    for delay in (0, 1, 2, 4):
+        if delay:
+            time.sleep(delay)
+        after = cached_asset(admin, group, artifact, version, path)
+        if after:
+            break
     if not after:
-        raise NexusError('Bytes match but proxy search index is not yet available. Retry cache; caching is not confirmed yet.')
-    if after.get('checksum', {}).get('sha256') not in (None, first):
-        raise NexusError('Proxy asset checksum differs from the download.')
+        raise NexusError('No stored maven-central asset record after bounded retries; caching is not confirmed.')
+    if after.get('checksum', {}).get('sha256') != first:
+        raise NexusError('Stored proxy asset SHA-256 is missing or differs from the download; caching is not confirmed.')
     print('VERIFIED repeated group downloads and stored maven-central asset: sha256=' + first)
     print('No local Maven cache was used. Inspect request.log for the two GET requests; '
           'this check alone does not prove upstream was offline.')

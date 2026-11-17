@@ -237,5 +237,79 @@ class NexusTests(unittest.TestCase):
         with patch('sys.stdout', new_callable=io.StringIO), self.assertRaisesRegex(NexusError, 'Java 11 incompatible'):
             manage.audit(argparse.Namespace(java11=True))
 
+
+class CacheTests(unittest.TestCase):
+    path = 'org/apache/commons/commons-lang3/3.17.0/commons-lang3-3.17.0.jar'
+
+    def lookup(self, client):
+        return manage.cached_asset(client, 'org.apache.commons', 'commons-lang3', '3.17.0', self.path)
+
+    def test_lookup_accepts_optional_leading_slash(self):
+        for path in (self.path, '/' + self.path):
+            with self.subTest(path=path):
+                client = Mock()
+                item = dict(repository='maven-central', path=path)
+                client.json.return_value = dict(items=[item], continuationToken=None)
+                self.assertEqual(self.lookup(client), item)
+                self.assertTrue(all(c.args[0] == 'GET' for c in client.json.call_args_list))
+
+    def test_lookup_paginates_and_rejects_other_repository(self):
+        client = Mock()
+        expected = dict(repository='maven-central', path='/' + self.path)
+        client.json.side_effect = [dict(items=[dict(repository='maven-public', path=self.path)], continuationToken='next token'),
+                                   dict(items=[expected], continuationToken=None)]
+        self.assertEqual(self.lookup(client), expected)
+        self.assertIn('continuationToken=next+token', client.json.call_args_list[1].args[1])
+
+    def cache_mocks(self):
+        admin, reader = Mock(), Mock()
+        admin.digest.return_value = 'a' * 64
+        reader.digest.return_value = 'a' * 64
+        return admin, reader
+
+    def test_cache_waits_for_asset_record_and_checks_stored_hash(self):
+        admin, reader = self.cache_mocks()
+        item = dict(checksum=dict(sha256='a' * 64))
+        with patch('manage.Client', side_effect=[admin, reader]), \
+             patch('manage.cached_asset', side_effect=[None, None, None, item]) as lookup, \
+             patch('manage.time.sleep') as sleep, patch('sys.stdout', new_callable=io.StringIO) as output:
+            manage.cache(argparse.Namespace())
+        self.assertEqual(lookup.call_count, 4)  # before download plus three post-download checks
+        self.assertEqual([c.args[0] for c in sleep.call_args_list], [1, 2])
+        self.assertIn('VERIFIED', output.getvalue())
+
+    def test_matching_bytes_without_asset_never_confirm_cache(self):
+        admin, reader = self.cache_mocks()
+        with patch('manage.Client', side_effect=[admin, reader]), \
+             patch('manage.cached_asset', return_value=None) as lookup, patch('manage.time.sleep') as sleep, \
+             patch('sys.stdout', new_callable=io.StringIO) as output:
+            with self.assertRaisesRegex(NexusError, 'bounded retries'):
+                manage.cache(argparse.Namespace())
+        self.assertEqual(lookup.call_count, 5)
+        self.assertEqual([c.args[0] for c in sleep.call_args_list], [1, 2, 4])
+        self.assertNotIn('VERIFIED', output.getvalue())
+
+    def test_missing_or_mismatched_stored_checksum_is_rejected(self):
+        for item in ({}, {'checksum': {}}, {'checksum': {'sha256': 'b' * 64}}):
+            with self.subTest(item=item):
+                admin, reader = self.cache_mocks()
+                # An asset returned by lookup is nonempty even when checksum is missing.
+                item = dict(path=self.path, **item)
+                with patch('manage.Client', side_effect=[admin, reader]), patch('manage.cached_asset', return_value=item), \
+                     patch('manage.time.sleep') as sleep, patch('sys.stdout', new_callable=io.StringIO):
+                    with self.assertRaisesRegex(NexusError, 'SHA-256 is missing or differs'):
+                        manage.cache(argparse.Namespace())
+                sleep.assert_not_called()
+
+    def test_different_downloads_fail_without_retry(self):
+        admin, reader = self.cache_mocks()
+        reader.digest.side_effect = ['a' * 64, 'b' * 64]
+        with patch('manage.Client', side_effect=[admin, reader]), patch('manage.cached_asset', return_value=None), \
+             patch('manage.time.sleep') as sleep, patch('sys.stdout', new_callable=io.StringIO):
+            with self.assertRaisesRegex(NexusError, 'checksums differ'):
+                manage.cache(argparse.Namespace())
+        sleep.assert_not_called()
+
+
 if __name__ == '__main__':
     unittest.main()

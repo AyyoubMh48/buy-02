@@ -427,61 +427,106 @@ other people's passwords or using reset/delete-volume commands.
 
 ## Nexus Maven repository management
 
-Docker Compose is the supported Nexus deployment. `nexus/docker-compose.yml` pins
-Sonatype `sonatype/nexus3:3.98.1` (Nexus 3.98.1-01), uses the persistent
-`buy02-nexus-data` volume, and binds the host port to `127.0.0.1` only. The
-restored instance is currently verified on temporary port 18081. The native
-installation, its data and verified backup remain available for rollback.
+Anas's Nexus/Maven implementation is complete and verified on
+`http://127.0.0.1:18081`. Docker Compose runs the pinned official
+`sonatype/nexus3:3.98.1` image (Nexus 3.98.1-01), as UID/GID 200, with persistent
+volume `buy02-nexus-data` and localhost-only access. Final cutover to port 8081
+is prepared and requires explicit approval before container recreation.
 
-Inspect or operate the existing container with:
+### Team responsibilities
+
+| Owner | Responsibility and status |
+| --- | --- |
+| **Anas** | **Completed:** Nexus Compose deployment, Maven repository provisioning, six SNAPSHOT publications, artifact retrieval/checksums, dependency proxy caching, version retrieval, least-privilege reader/publisher accounts and RBAC verification |
+| **Ayoub** | Application Dockerfiles/images, Docker image publishing/retrieval and CI/CD pipeline integration; these are separate from the Nexus service's Compose deployment |
+| **Operator approval** | Final port 8081 cutover; native installation and verified backup remain available for rollback |
+
+### Verified Maven results
+
+All six services publish `0.0.1-SNAPSHOT` to `maven-snapshots`: discovery,
+gateway, user-service, product-service, media-service and order-service
+(the last two artifact IDs are `media` and `order-service`, respectively).
+Downloads, local/hosted/group SHA-256 comparisons, Maven retrieval, dependency
+caching and RBAC passed. The final inventory query now uses `maven.baseVersion`
+to find timestamped SNAPSHOT components. All 446 application tests passed in the
+previous full build; 44 Nexus tooling tests pass. The latest inventory/checksum
+checks used the existing artifacts without republishing.
+
+| Endpoint under the Nexus base URL | Purpose |
+| --- | --- |
+| `/repository/maven-public/` | Authenticated dependency/plugin read group |
+| `/repository/maven-releases/` | Immutable hosted releases (`ALLOW_ONCE`) |
+| `/repository/maven-snapshots/` | Hosted timestamped SNAPSHOT builds |
+| `/repository/maven-central/` | Maven Central proxy/cache |
+
+Inspect the existing deployment without changing its ports:
 
 ```bash
 docker compose -f nexus/docker-compose.yml config --quiet
-NEXUS_HOST_PORT=18081 docker compose -f nexus/docker-compose.yml up -d --wait --wait-timeout 900
-docker compos\e -f nexus/docker-compose.yml ps
+docker compose -p nexus -f nexus/docker-compose.yml ps
 curl --fail http://127.0.0.1:18081/service/rest/v1/status
 curl --fail http://127.0.0.1:18081/service/rest/v1/status/writable
+python3 scripts/nexus/manage.py audit
+python3 -m unittest discover -s scripts/nexus -p 'test_*.py' -v
 ```
 
-Do not create a replacement volume, mount `/var/lib/nexus`, use `down -v`, or
-expose Nexus beyond loopback. Authenticated repository/RBAC verification and
-Maven publishing are pending; the final cutover to port 8081 requires explicit
-approval. Follow the [Nexus Maven runbook](docs/NEXUS_MAVEN_RUNBOOK.md), review
-[verified results and blockers](docs/NEXUS_VERIFICATION.md), and see the
-[completion report](docs/NEXUS_COMPLETION_REPORT.md).
+### First-time setup on another developer's machine
 
-
-### Nexus first-time team setup
-
-On a fresh clone, `cd nexus && docker compose up -d --wait --wait-timeout 900`
-creates the persistent volume and starts localhost port 8081. Return to the
-repository root and bootstrap privately:
+Use a fresh clone with Docker Compose v2, Python 3 and the existing Java/Maven
+requirements. No personal Windows paths, existing database or private files
+are needed:
 
 ```bash
+cd nexus
+docker compose up -d --wait --wait-timeout 900
+cd ..
 python3 scripts/nexus/setup_credentials.py --url http://127.0.0.1:8081 --file /tmp/buy02-nexus-team.env --bootstrap
-# Open Nexus, sign in privately, accept the EULA, and complete initial setup.
+# Sign in privately, accept the EULA and complete initial setup in the browser.
 python3 scripts/nexus/setup_credentials.py --file /tmp/buy02-nexus-team.env --reuse --finish
 ```
 
-The helper creates private credentials outside Git, provisions four Maven
-repositories and least-privilege accounts, builds/tests/publishes the six
-SNAPSHOT services and verifies downloads, checksums, caching and RBAC. Admin
-credentials stay out of Maven subprocesses. Existing accounts are preserved;
-use their existing credentials rather than generating replacements.
+Compose creates its volume when absent. The bootstrap helper captures the
+initial password privately and replaces it with the prompted new password;
+credentials are stored outside Git with mode 0600. Use bootstrap only on a
+fresh instance. Existing accounts retain their passwords. The finish workflow
+provisions idempotently, builds/tests/deploys six SNAPSHOT artifacts and verifies
+them. It publishes new timestamped builds, so do not rerun it just to inspect
+already verified artifacts. See the runbook for individual verification commands.
 
-Maven reads dependencies through `maven-public`, which groups immutable releases,
-timestamped snapshots and the Maven Central proxy. The shared settings are
-`nexus/maven/settings.xml`. After loading private credentials, use
-`python3 scripts/nexus/manage.py publish all`, `cache`, `verify-access`, or
-`resolve discovery --version 0.0.1-SNAPSHOT`. Retrieve earlier published versions
-for rollback; never replace an immutable release. Back up all `/nexus-data`
-while stopped, verify the archive, and test restores in a separate volume.
+### Maven, security and CI handoff
 
-Run `docker compose -f nexus/docker-compose.yml config --quiet`,
-`python3 scripts/nexus/manage.py audit`, and the Nexus tooling tests before review.
-CI needs `NEXUS_URL`, `NEXUS_READ_USERNAME`, `NEXUS_READ_PASSWORD`,
-`NEXUS_PUBLISH_USERNAME`, `NEXUS_PUBLISH_PASSWORD`; the teammate owns application
-Docker images and pipeline integration. Remote CI needs a TLS endpoint or SSH
-tunnel; do not expose the loopback Nexus port publicly. The Default Secret
-Encryption Key warning is deferred; keys and secret storage are unchanged.
-See the runbook for onboarding, validation, troubleshooting, backup and rollback.
+`nexus/maven/settings.xml` reads credentials from the environment and mirrors
+dependency/plugin resolution through `maven-public`. After securely loading
+private credentials, use these existing commands as needed:
+
+```bash
+python3 scripts/nexus/manage.py publish all
+python3 scripts/nexus/manage.py verify-artifact discovery --local
+python3 scripts/nexus/manage.py resolve discovery --version 0.0.1-SNAPSHOT
+python3 scripts/nexus/manage.py cache
+python3 scripts/nexus/manage.py verify-access
+```
+
+Reader can resolve dependencies; publisher adds hosted upload/edit permissions
+without delete or administration. Maven never receives administrator credentials.
+Keep immutable releases unchanged; use new release versions for fixes and
+retrieve an earlier published version for rollback.
+
+Ayoub's CI integration needs `NEXUS_URL`, `NEXUS_READ_USERNAME`,
+`NEXUS_READ_PASSWORD`, `NEXUS_PUBLISH_USERNAME` and `NEXUS_PUBLISH_PASSWORD`.
+Keep passwords in the CI credential store, not Git. Use the final host URL only
+after cutover. A remote/container runner needs a TLS endpoint or SSH tunnel;
+its own localhost cannot reach the Nexus host. Keep the Nexus bind loopback-only.
+
+### Backup, rollback and remaining operations
+
+Back up all `/nexus-data` while Nexus is stopped during an approved maintenance
+window. Verify the checksum/archive and restore only into a separate volume.
+Never use `down -v`, delete the existing volume, or mount `/var/lib/nexus` into
+Docker. The preserved native data and verified backup remain rollback assets;
+stop Docker before starting the native fallback. Default Secret Encryption Key
+warning remediation is deferred; no encryption keys or secret storage changed.
+
+See the [runbook and approval-gated cutover](docs/NEXUS_MAVEN_RUNBOOK.md),
+[completion report](docs/NEXUS_COMPLETION_REPORT.md) and
+[script guide](docs/NEXUS_SCRIPTS_EXPLAINED.md).

@@ -1,82 +1,84 @@
-# Nexus completion status
+# Nexus/Maven completion report
 
-Updated: 2026-11-17. Docker Compose is the supported project deployment. No
-credentials, artifacts or live Nexus configuration have been changed by this
-documentation cleanup.
+Updated: 2026-11-17. Owner: **Anas**. The Nexus/Maven implementation is complete
+and verified on temporary localhost port 18081. Final port 8081 cutover is
+prepared but has not been executed; container recreation requires approval.
 
-## Verified
+## Verified results
 
-- Backup: `/var/backups/nexus/native-3.98.1-01-20261117T115025Z.tar`, SHA-256
-  `6e191d2ae6b34e798b0ecef0b5c9f3b4935ae1101e66a125802f0ffeb169dfdf`;
-  archive integrity and comparison to preserved native data passed.
-- Docker Nexus 3.98.1-01 runs from `sonatype/nexus3:3.98.1` with UID/GID 200,
-  persistent volume `buy02-nexus-data`, and localhost-only binding.
-- Temporary endpoint `127.0.0.1:18081` passed health, read/write readiness and
-  Windows HTTP checks. Restored blob data was writable and 3,373 blob files were
-  present; no read-only blob-store warnings were observed.
-- Docker Compose validation and `manage.py audit` passed.
-- Six existing Maven services passed `clean verify`: discovery 2 tests,
-  gateway 27, user-service 48, product-service 93, media-service 45,
-  order-service 231; 446 total, zero failures/errors/skips. These builds used
-  Maven Central directly, not Nexus.
-- Nexus tooling tests passed: 33 tests after removal of native-only downloader
-  and health-check tests.
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Six full application builds/tests | PASS | Previous host-access clean verify: 446 tests, zero failures/errors/skips; Java, Spring Boot and POM versions preserved |
+| Nexus tooling tests | PASS | 44 tests, including cache path/checksum/retry and SNAPSHOT inventory regressions |
+| Compose validation | PASS | Existing and final localhost port configurations validated |
+| Maven configuration audit | PASS | Six POM coordinates, deployment IDs and settings mirror checked |
+| Administrator authentication/configuration | PASS | Four required Maven repositories, reader/publisher accounts, roles and anonymous-access restrictions verified |
+| Existing SNAPSHOT inventory | PASS | All six found through repository-scoped Maven groupId/artifactId/baseVersion queries |
+| Artifact downloads/checksums | PASS | JAR and POM bytes match hosted/group/local SHA-256 for all six |
+| Maven version retrieval | PASS | All six 0.0.1-SNAPSHOT artifacts resolved through Nexus in the prior authenticated verification |
+| Proxy caching | PASS | Repeated group/proxy downloads match the stored maven-central asset's SHA-256 |
+| Non-destructive RBAC | PASS | Reader/publisher downloads allowed; anonymous download, reader upload and publisher user administration denied; no DELETE requests |
+| Runtime | PASS | Healthy, writable, non-root UID/GID 200, 127.0.0.1:18081 with buy02-nexus-data |
+| Git secret/data scans | PASS | Current tracked content/path checks found no private credential files, archives, databases or secret signatures |
+| Scoped diff whitespace | PASS | Nexus files and updated documentation pass |
+| Entire worktree whitespace | FAIL | Pre-existing unrelated CRLF/trailing whitespace; those files were not modified by this cleanup |
 
-## Pending
+## Published artifacts
 
-- Authenticated repository, account, role and component inventory.
-- Provisioning/reconciliation of the four Maven repositories and least-privilege
-  reader/publisher accounts.
-- Maven builds through Nexus, six SNAPSHOT publishes, artifact download/checksum
-  verification, dependency cache and RBAC checks.
-- Final cutover to port 8081. The current instance remains at 18081; explicit
-  operator approval is required before cutover.
+All listed base versions are **0.0.1-SNAPSHOT** in **maven-snapshots**. Nexus
+stores timestamped builds beneath these base versions. Latest checks only read
+existing artifacts; nothing was republished or overwritten.
 
-The interactive helper is `scripts/nexus/setup_credentials.py`; it creates an
-external mode-0600 file at `/tmp/nexus-migration-credentials.env` and refuses
-to overwrite it. No secret values are stored in Git. After credentials are
-configured, follow [the runbook](NEXUS_MAVEN_RUNBOOK.md) and update this report
-with actual command results.
+| Service | Maven coordinate |
+| --- | --- |
+| discovery | com.buy01:discovery:0.0.1-SNAPSHOT |
+| gateway | com.buy01:gateway:0.0.1-SNAPSHOT |
+| user-service | com.buy01:user-service:0.0.1-SNAPSHOT |
+| product-service | com.buy01:product-service:0.0.1-SNAPSHOT |
+| media-service | com.buy-01:media:0.0.1-SNAPSHOT |
+| order-service | com.buy01:order-service:0.0.1-SNAPSHOT |
 
-The native `/var/lib/nexus`, systemd service and verified archive remain intact
-for rollback. Do not remove them or the Docker volume until migration,
-publishing, authentication, persistence and restore validation are complete.
-CI and Docker image integration remain the teammate's responsibility.
+The cache verification failure was caused by comparing paths without accounting
+for Nexus's leading slash. Verification now normalizes that slash, checks the
+stored proxy asset SHA-256 and permits bounded retries (1, 2, 4 seconds).
+Matching download bytes alone cannot pass. The helper's final inventory filter
+now uses `maven.baseVersion`, which correctly finds timestamped SNAPSHOT builds.
 
-## Final execution checkpoint
+## Responsibility handoff
 
-- Fresh onboarding Compose started successfully on localhost 28081 using the
-  separate `buy02-nexus-onboarding-data` volume and `buy02-nexus-onboarding`
-  container. The current migrated service and volume were not changed.
-- Isolated admin authentication and private password rotation passed. Repository
-  provisioning, a second no-change provisioning plan and `verify-config` passed.
-- Isolated Maven publish initially FAILED with 403. Diagnosis confirmed the
-  fresh instance's EULA is unaccepted, including for admin artifact requests.
-  The operator must accept it in the browser. No EULA was accepted automatically.
-  Fresh-instance upload/download/cache/RBAC remain BLOCKED pending that step.
-- The existing 18081 service is healthy, writable and UID/GID 200. Its private
-  credential file is absent. `setup_credentials.py --finish` now completes the
-  authenticated workflow locally after private entry; `--reuse --finish` resumes
-  without overwriting the private file. No current-instance publish is confirmed.
-- 33 tooling tests, Compose validation for ports 8081/18081, local audit, Python
-  syntax, scoped whitespace check and tracked secret/data signature scans PASS.
-- An application rerun in the sandbox failed due socket/Mockito restrictions;
-  it was cancelled and rerun with host access. Final host results are recorded
-  below when complete. The historical 446-test result above predates this rerun.
-- Full-worktree `git diff --check` FAILS on pre-existing CRLF/trailing whitespace
-  in unrelated changes (also fails with CRLF tolerated). Nexus-scoped check
-  PASSES. Those teammate changes were not edited or staged. The worktree has
-  hundreds of pre-existing modifications; use scoped staging only.
-- Default Secret Encryption Key warning is deferred. No encryption-key changes,
-  final cutover, commits, pushes or merges were performed. The isolated test
-  volume/container are retained; no test or existing volume was deleted.
+- **Anas — completed:** Docker Compose deployment of Nexus, Maven repository
+  provisioning, Maven publishing/retrieval/versioning, dependency proxy/cache,
+  credentials and least-privilege RBAC, verification and Nexus documentation.
+- **Ayoub — integration responsibility:** application Dockerfiles/images,
+  Docker image publishing/retrieval and CI/CD integration. No application
+  Dockerfiles or CI pipelines were modified by this cleanup.
+- **Approval pending:** recreate only the Nexus container on port 8081, retain
+  buy02-nexus-data, then recheck Windows HTTP, health, UID/GID, writability and
+  all six stored artifacts. The running container remains on port 18081.
 
+CI inputs: NEXUS_URL, NEXUS_READ_USERNAME, NEXUS_READ_PASSWORD,
+NEXUS_PUBLISH_USERNAME and NEXUS_PUBLISH_PASSWORD. Administrator credentials
+must never be supplied to Maven/CI. Remote CI needs an authenticated TLS endpoint
+or SSH tunnel; do not broaden the localhost bind.
 
-Final host-access rerun: all six clean verify builds PASS. 446 tests, zero failures/errors/skips (from Surefire XML). Direct Maven Central resolution was used, not Nexus.
+## Preserved data and deferred work
 
-- discovery: {'tests': 2, 'failures': 0, 'errors': 0, 'skipped': 0}
-- gateway: {'tests': 27, 'failures': 0, 'errors': 0, 'skipped': 0}
-- user-service: {'tests': 48, 'failures': 0, 'errors': 0, 'skipped': 0}
-- product-service: {'tests': 93, 'failures': 0, 'errors': 0, 'skipped': 0}
-- media-service: {'tests': 45, 'failures': 0, 'errors': 0, 'skipped': 0}
-- order-service: {'tests': 231, 'failures': 0, 'errors': 0, 'skipped': 0}
+The native installation and `/var/lib/nexus` are preserved. The verified archive
+`/var/backups/nexus/native-3.98.1-01-20261117T115025Z.tar` remains available;
+recorded SHA-256:
+`6e191d2ae6b34e798b0ecef0b5c9f3b4935ae1101e66a125802f0ffeb169dfdf`.
+No container restart, port change, credential reset or data migration occurred
+in this cleanup. No artifacts, volumes or backups were deleted.
+
+Fresh Compose startup, private admin setup and idempotent provisioning were
+verified in the separate onboarding instance on port 28081. Its end-to-end
+publish test remains subject to operator EULA acceptance; it is distinct from
+the fully verified migrated instance on 18081. The test volume is retained.
+
+The Default Secret Encryption Key warning is deferred security work. Encryption
+keys and secret storage were not changed. Full-worktree whitespace cleanup is
+outside Anas's Nexus scope; stage only the reviewed Nexus changes. No automatic
+commit, push or merge was performed.
+
+See [NEXUS_MAVEN_RUNBOOK.md](NEXUS_MAVEN_RUNBOOK.md) for onboarding, backup,
+rollback, CI endpoints and exact cutover commands awaiting approval.

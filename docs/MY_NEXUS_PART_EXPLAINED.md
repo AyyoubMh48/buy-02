@@ -14,8 +14,8 @@ read/write readiness, Windows HTTP, and blob-store writability checks on
 temporary port 18081. The native installation, its `/var/lib/nexus` data and
 verified backup remain available for rollback.
 
-Authenticated repository/user/role inventory and Maven publishing, caching,
-artifact checksum and RBAC checks remain pending. Final port 8081 cutover also
+Authenticated repository/user/role inventory, six SNAPSHOT publications, caching,
+artifact checksum/retrieval and RBAC checks passed. Final port 8081 cutover
 requires explicit approval. See the [completion status](NEXUS_COMPLETION_REPORT.md).
 
 ## Repository and Maven flow
@@ -36,7 +36,7 @@ The six Maven services are discovery, gateway, user-service, product-service,
 media-service and order-service. The existing `manage.py` tooling audits local
 configuration, provisions repositories/accounts, builds and publishes,
 downloads artifacts for SHA-256 comparison, resolves versions, verifies proxy
-caching and exercises access controls. No SNAPSHOT publication is yet confirmed.
+caching and exercises access controls. All six 0.0.1-SNAPSHOT publications are confirmed and verified.
 
 ## Operations and rollback
 

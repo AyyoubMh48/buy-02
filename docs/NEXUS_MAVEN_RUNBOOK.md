@@ -12,9 +12,9 @@ remain intact on the host as a rollback option.
 - The restored instance is healthy on `http://127.0.0.1:18081`. HTTP health,
   write-readiness and Windows browser checks returned 200. The verified backup
   and original `/var/lib/nexus` are preserved.
-- Final port 8081 cutover, authenticated repository/user/role inventory,
-  repository provisioning, Maven publishing, cache and RBAC checks are pending.
-  Do not report them as completed until run against the live server.
+- Authenticated provisioning, all six SNAPSHOT publications, downloads/checksums,
+  Maven retrieval, caching and RBAC checks passed. Final port 8081 cutover
+  remains pending explicit approval. See the completion report for current evidence.
 
 ## Start, stop and inspect
 
@@ -47,12 +47,35 @@ performed. After authenticated checks are complete, obtain explicit operator
 approval. Then recreate the Compose service with the default port and verify:
 
 ```bash
+test -z "$(ss -H -ltn 'sport = :8081')"
 NEXUS_HOST_PORT=8081 NEXUS_CONTAINER_NAME=buy02-nexus NEXUS_VOLUME_NAME=buy02-nexus-data docker compose -p nexus -f nexus/docker-compose.yml up -d --no-deps --force-recreate --wait --wait-timeout 900 nexus
 curl --fail http://127.0.0.1:8081/service/rest/v1/status
 curl --fail http://127.0.0.1:8081/service/rest/v1/status/writable
 docker inspect buy02-nexus --format '{{.State.Health.Status}}'
 docker exec buy02-nexus id
+docker exec buy02-nexus sh -c 'test -w /nexus-data/db && test -w /nexus-data/blobs'
+powershell.exe -NoProfile -NonInteractive -Command "(Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:8081').StatusCode"
 ```
+
+Then verify the same six components at the new port without publishing or
+changing the private credential file:
+
+```bash
+python3 - <<'PYVERIFY'
+import os, sys
+sys.path.insert(0, 'scripts/nexus')
+from setup_credentials import load_private, DESTINATION, verify_snapshot_inventory
+from nexus_api import Client
+values = load_private(DESTINATION)
+values['NEXUS_URL'] = 'http://127.0.0.1:8081'
+os.environ.update(values)
+verify_snapshot_inventory(Client())
+PYVERIFY
+```
+
+Confirm the mount still names `buy02-nexus-data`; no restore or volume creation
+is part of this cutover. If checks fail, diagnose before any further recreation.
+The native installation and backup remain untouched.
 
 The container uses the restored volume, remains loopback-only and runs as UID
 200. Keep the native data, backup and Docker volume for rollback. If rollback is
@@ -108,8 +131,8 @@ The Maven reader role should have browse/read on `maven-public`. The publisher
 inherits reader and has browse/read/add/edit on the two hosted repositories;
 it must not have delete or administration privileges. `verify-config` checks
 the configured repository policies, roles, accounts and anonymous access.
-Authenticated inventory and current live policies are pending until private
-credentials are available and the commands have succeeded.
+Authenticated inventory and live policies passed; use these commands to verify
+a new instance or recheck after an approved cutover.
 
 ## Build, publish, retrieve and cache
 
@@ -145,8 +168,8 @@ select and test an earlier artifact version through the normal release process;
 publish a new immutable release containing the rollback. Do not overwrite or
 delete the prior release.
 
-Authenticated publishing, artifact downloads/checksums, cache and RBAC have not
-yet been verified in this environment.
+Authenticated publishing, artifact downloads/checksums, cache and RBAC passed
+on the current instance. Do not republish solely to recheck stored artifacts.
 
 ## Backup, restore and troubleshooting
 
@@ -284,3 +307,20 @@ verified checksum, and copying the full archive as UID/GID 200; never extract
 into the live volume. Privileged extraction or ownership changes require
 separate approval. The preserved native backup remains the fallback for this
 migration and must not be replaced by this example.
+
+### Repair an invalid new-account password
+
+If provisioning rejects a service password shorter than 16 characters, repair
+only the invalid entries and resume in the same private terminal:
+
+```bash
+python3 scripts/nexus/setup_credentials.py --reuse --repair-service-passwords && python3 scripts/nexus/setup_credentials.py --reuse --finish
+```
+
+The repair performs a read-only administrator account lookup. Existing Nexus
+accounts and valid local credentials are preserved. It prompts only for short
+passwords belonging to accounts that do not yet exist. Typed passwords require
+at least 16 characters and confirmation; Enter generates a secure password
+without displaying it. Both repairs must complete before the private file is
+replaced atomically with mode 0600. Cancellation leaves the original file
+unchanged. No Nexus password reset is performed.

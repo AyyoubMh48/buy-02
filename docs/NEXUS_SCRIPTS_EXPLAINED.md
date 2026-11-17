@@ -10,7 +10,6 @@ remaining project files and the task each one serves.
 | `nexus/docker-compose.yml` | KEEP | Pinned official image, localhost-only port, persistent volume and health check |
 | `nexus/maven/settings.xml` | KEEP | Maven mirror and authenticated deployment IDs |
 | `nexus/repositories.json` | KEEP | Desired hosted, proxy and group repository definitions |
-| `nexus/env.example` | KEEP | Variable names and non-secret examples only |
 | `nexus/.gitignore` | KEEP | Excludes local env, secret, data and download files |
 | `scripts/nexus/manage.py` | KEEP | Audit, provisioning, builds, publishing, cache, retrieval and RBAC checks |
 | `scripts/nexus/nexus_api.py` | KEEP | Authenticated REST client that avoids logging credentials/response bodies |
@@ -54,8 +53,7 @@ credentials, then creates `/tmp/nexus-migration-credentials.env` with mode
 0600. It does not overwrite an existing file. Keep it outside Git. Reader gets
 read access through the group; publisher gets read/add/edit on hosted
 repositories and no delete/admin privileges. Admin credentials are only for
-configuration. Current live repository and RBAC state is pending authenticated
-verification.
+configuration. Current live repository and RBAC verification passed; see the completion report.
 
 ## Existing tooling
 
@@ -68,7 +66,7 @@ artifact through the proxy/group; `verify-access` checks allowed and denied
 operations. Review the runbook before applying configuration or publishing.
 
 The tooling test suite is `python3 -m unittest discover -s scripts/nexus -p
-'test_*.py' -v`. The current recorded result is 33 tests passed.
+'test_*.py' -v`. The current recorded result is 44 tests passed.
 
 ## Backup and fallback
 

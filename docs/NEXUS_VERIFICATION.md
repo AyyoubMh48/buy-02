@@ -17,11 +17,11 @@ and [NEXUS_MAVEN_RUNBOOK.md](NEXUS_MAVEN_RUNBOOK.md) for operational commands.
 | Blob preservation | PASS | 3,373 blob files present; no read-only warnings observed |
 | Native installation/backup retained | PASS | Native service stopped; source and archive retained |
 | Maven local configuration audit | PASS | `python3 scripts/nexus/manage.py audit` |
-| Nexus tooling tests | PASS | 33 tests after native-only test removal |
+| Nexus tooling tests | PASS | 44 tests after native-only test removal |
 | Six application builds | PASS | 446 tests total; Maven Central used directly |
-| Authenticated repository/RBAC inventory | BLOCKED | Credentials must be configured and live checks run |
-| Maven publish/download/cache through Nexus | BLOCKED | No authenticated operations verified yet |
-| Port 8081 cutover | BLOCKED | Awaiting authenticated checks and explicit approval |
+| Authenticated repository/RBAC inventory | PASS | Repository policies, users, least-privilege roles and access denials verified |
+| Maven publish/download/cache through Nexus | PASS | Six SNAPSHOT artifacts, SHA-256 comparisons, Maven retrieval and stored proxy asset verified |
+| Port 8081 cutover | BLOCKED | Awaiting explicit approval for container recreation |
 
 No result in the blocked rows should be treated as passed. The existing Java,
 Spring Boot and POM configuration was not changed for this deployment.

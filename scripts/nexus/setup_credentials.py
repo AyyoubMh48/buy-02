@@ -11,6 +11,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 
 from nexus_api import Client, NexusError, base_url
 
@@ -49,6 +50,86 @@ def load_private(path):
     return values
 
 
+def repair_service_passwords(path, values):
+    """Repair only short passwords for accounts not yet present; no server writes."""
+    if not sys.stdin.isatty() or not sys.stderr.isatty():
+        raise NexusError('Password repair requires your local interactive terminal.')
+    if path.resolve().is_relative_to(ROOT):
+        raise NexusError('Credential file must be outside the checkout.')
+    previous = {key: os.environ.get(key) for key in values}
+    try:
+        os.environ.update(values)
+        users = Client().json('GET', '/security/users')
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+    existing = {u['userId'] for u in users if u.get('source', 'default') == 'default'}
+    updates = {}
+    for prefix in ('NEXUS_READ', 'NEXUS_PUBLISH'):
+        if values[prefix + '_USERNAME'] in existing or len(values[prefix + '_PASSWORD']) >= 16:
+            continue
+        while True:
+            password = getpass.getpass(prefix + ' new password (hidden; Enter generates securely): ')
+            if not password:
+                password = secrets.token_urlsafe(32)
+            else:
+                if len(password) < 16 or not password.strip() or any(c in password for c in '\r\n\0'):
+                    print('Use at least 16 characters, without line breaks; try again.')
+                    continue
+                if password != getpass.getpass('Confirm new password (hidden): '):
+                    print('Passwords did not match; try again.')
+                    continue
+            updates[prefix + '_PASSWORD'] = password
+            break
+    if not updates:
+        print('No invalid new-account passwords found; private file unchanged.')
+        return values
+    # Preserve all untouched lines, including administrator and valid passwords.
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, 'rb') as stream:
+        original_stat = os.fstat(stream.fileno())
+        original = stream.read()
+    if load_private(path) != values:
+        raise NexusError('Credential file changed during repair; no update saved.')
+    lines = original.decode('utf-8').splitlines(keepends=True)
+    replacement = ''.join(key + '=' + shlex.quote(updates[key]) + '\n'
+                          if (key := line.partition('=')[0]) in updates else line
+                          for line in lines).encode('utf-8')
+    temp_fd, temp_name = tempfile.mkstemp(prefix='.nexus-credentials-', dir=path.parent)
+    try:
+        with os.fdopen(temp_fd, 'wb') as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            stream.write(replacement)
+            stream.flush()
+            os.fsync(stream.fileno())
+        current = path.lstat()
+        if (current.st_dev, current.st_ino) != (original_stat.st_dev, original_stat.st_ino) or load_private(path) != values:
+            raise NexusError('Credential file changed during repair; no update saved.')
+        os.replace(temp_name, path)
+    finally:
+        if os.path.exists(temp_name):
+            os.unlink(temp_name)
+    print('Updated only invalid new-account passwords; retained mode 0600. No Nexus account was reset.')
+    return load_private(path)
+
+
+def verify_snapshot_inventory(admin):
+    """Find timestamped SNAPSHOT components by their Maven base version."""
+    from urllib.parse import urlencode
+    import manage
+    for service in manage.SERVICES:
+        group, artifact, version = manage.coordinates(service)
+        params = {'repository': 'maven-snapshots', 'maven.groupId': group,
+                  'maven.artifactId': artifact, 'maven.baseVersion': version}
+        data = admin.json('GET', '/search?' + urlencode(params))
+        if not data.get('items'):
+            raise NexusError('No published SNAPSHOT component found for ' + service + '; inventory verification failed.')
+        print('PASS published component: ' + service + ' ' + version + ' maven-snapshots')
+
+
 def finish(values):
     os.environ.update(values)
     if not os.environ.get('MAVEN_BIN') and shutil.which('mvn'):
@@ -76,15 +157,7 @@ def finish(values):
                                 cwd=ROOT, check=False)
         if result.returncode:
             raise NexusError('Workflow stopped at: ' + ' '.join(command) + '. Correct the failure and rerun with --reuse --finish.')
-    # Confirm a server-side component entry for every built coordinate.
-    from urllib.parse import urlencode
-    for service in manage.SERVICES:
-        group, artifact, version = manage.coordinates(service)
-        data = admin.json('GET', '/search?' + urlencode(dict(repository='maven-snapshots', group=group,
-                                                           name=artifact, version=version)))
-        if not data.get('items'):
-            raise NexusError('Component index not yet available for ' + service + '; retry verification.')
-        print('PASS published component: ' + service + ' ' + version + ' maven-snapshots')
+    verify_snapshot_inventory(admin)
     print('PASS authenticated workflow. Port remains unchanged; request approval before cutover.')
 
 
@@ -95,13 +168,18 @@ def main():
     parser.add_argument('--bootstrap', action='store_true', help='Fresh local container only: read generated admin password privately and replace it with your prompted password')
     parser.add_argument('--container', default='buy02-nexus')
     parser.add_argument('--reuse', action='store_true', help='Load existing mode-0600 file without replacing it')
+    parser.add_argument('--repair-service-passwords', action='store_true', help='Privately repair only short passwords for new reader/publisher accounts; requires --reuse')
     parser.add_argument('--finish', action='store_true', help='Authenticate, provision, build/deploy/check all six SNAPSHOTs, cache and RBAC')
     args = parser.parse_args()
     try:
         if args.reuse and args.bootstrap:
             raise NexusError('--bootstrap cannot be combined with --reuse.')
+        if args.repair_service_passwords and not args.reuse:
+            raise NexusError('--repair-service-passwords requires --reuse.')
         if args.reuse:
             values = load_private(args.file)
+            if args.repair_service_passwords:
+                values = repair_service_passwords(args.file, values)
         else:
             if args.file.exists() or args.file.is_symlink():
                 raise NexusError('Credential file exists; refusing overwrite. Use --reuse to load it.')
