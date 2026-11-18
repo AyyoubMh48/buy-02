@@ -26,6 +26,11 @@ printf 'JENKINS_DOCKER_SOCKET_HOST=%s\nJENKINS_TEST_HOST=%s\n' "$socket_path" "$
 docker volume inspect jenkins-lab_jenkins_home >/dev/null 2>&1 || docker volume create jenkins-lab_jenkins_home >/dev/null
 docker network inspect jenkins-lab_jenkins-network >/dev/null 2>&1 || docker network create jenkins-lab_jenkins-network >/dev/null
 compose=(docker compose --env-file .local/jenkins-host.env -p jenkins-lab -f jenkins-lab/compose.host.yml)
+if [ "${NEXUS_CI_NETWORK:-false}" = true ]; then
+    # Optional TLS proxy route; Docker's host-side daemon also needs registry DNS/trust.
+    docker network inspect buy02-artifacts >/dev/null
+    compose+=(-f nexus/compose.jenkins-network.yml)
+fi
 "${compose[@]}" config --quiet
 "${compose[@]}" up --no-deps -d --build --wait --wait-timeout 600 jenkins
 echo 'Jenkins is ready at http://localhost:8085. Staging uses https://localhost:4300 after a successful main deployment.'

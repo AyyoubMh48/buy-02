@@ -1,0 +1,9 @@
+# Use AFTER jenkins-lab/compose.host.yml. Start the registry overlay first.
+services:
+  jenkins:
+    networks:
+      - artifacts
+networks:
+  artifacts:
+    external: true
+    name: buy02-artifacts

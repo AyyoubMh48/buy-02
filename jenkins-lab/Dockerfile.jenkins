@@ -9,7 +9,7 @@ USER root
 # ==========================================
 
 RUN apt-get update && \
-    apt-get install -y ca-certificates curl && \
+    apt-get install -y ca-certificates curl python3 && \
     install -m 0755 -d /etc/apt/keyrings && \
     curl -fsSL https://download.docker.com/linux/debian/gpg \
       -o /etc/apt/keyrings/docker.asc && \
@@ -38,7 +38,7 @@ RUN curl -fsSL https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/s
     rm /tmp/scanner.zip && rm -rf /var/lib/apt/lists/*
 
 # Fail the image build if a required pipeline tool is missing.
-RUN java -version && node --version && npm --version && \
+RUN java -version && python3 --version && node --version && npm --version && \
     docker --version && docker compose version
 
 
