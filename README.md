@@ -439,7 +439,100 @@ artifact checksum, caching and RBAC checks.
 | Owner | Responsibility and status |
 | --- | --- |
 | **Anas** | **Completed:** Nexus Compose deployment, Maven repository provisioning, six SNAPSHOT publications, artifact retrieval/checksums, dependency proxy caching, version retrieval, least-privilege reader/publisher accounts and RBAC verification |
-| **Ayoub** | Application Dockerfiles/images, Docker image publishing/retrieval and CI/CD pipeline integration; these are separate from the Nexus service's Compose deployment |
+| **Ayoub** | Docker registry/TLS/RBAC tooling and Jenkins publishing implemented; live integration verification pending (see Docker/CI runbook) |
+
+### Anas — Nexus Repository Manager and Maven Integration
+
+**Completed and verified on Anas's host:** the
+[completion report](docs/NEXUS_COMPLETION_REPORT.md) records Nexus 3.98.1-01
+running through Docker Compose, persistent storage, localhost-only binding,
+non-root UID/GID 200, health checks and Windows accessibility. It also records
+the native-to-Docker migration, a verified backup and preservation of the
+original data. Backup and rollback procedures are in the
+[Nexus runbook](docs/NEXUS_MAVEN_RUNBOOK.md).
+
+Anas configured deployment destinations for all six Maven services, environment-based
+Maven credentials, `maven-releases`, `maven-snapshots`, `maven-central` and
+`maven-public`. His tooling provisions repositories and restricted reader/publisher
+accounts, publishes artifacts, retrieves versions and verifies checksums, proxy
+caching and role-based access control (RBAC). The report records successful
+publication and retrieval of all six `0.0.1-SNAPSHOT` artifacts, matching JAR/POM
+SHA-256 values, stored proxy-cache evidence and access-denial checks. It also
+records 446 passing application tests and fresh-instance provisioning/idempotence.
+Java and Spring Boot versions were preserved.
+
+**Checked in this checkout:** the Maven configuration audit and all 69 Nexus
+tooling tests pass; Compose configuration validation passes. These checks do
+not independently repeat Anas's live publishing, checksum, cache or RBAC checks.
+Docker inspection succeeded with elevated access, but no Nexus container was
+running and localhost port 8081 was unreachable. Live Nexus status here remains
+unverified; automatic approval review rejected startup under the earlier
+container-change restriction.
+
+**Implemented but awaiting verification on Ayoub's instance:** fresh-machine
+onboarding and end-to-end Maven publishing. The separate onboarding instance in
+Anas's report passed provisioning, but its publishing test awaited operator EULA
+acceptance. Do not confuse that result with the verified migrated instance.
+
+**Remaining acceptance checks:** Ayoub must verify the same Maven workflow with
+his own instance and credentials. The report demonstrates one base SNAPSHOT
+version per service; demonstrating two distinct application versions and a
+rollback remains a team acceptance task. The default secret-encryption-key
+warning and [Java 11 compatibility](docs/JAVA11_COMPATIBILITY.md) remain unresolved.
+
+### Ayoub — Docker Image Integration and CI/CD Automation
+
+**Implemented, awaiting live verification:** the existing six backend Dockerfiles
+and frontend build stages are reused. The new Docker/CI implementation provides:
+
+- An additive TLS proxy overlay and optional Jenkins network connection.
+- Idempotent Docker hosted repository provisioning, immutable tags, Docker token
+  authentication and separate least-privilege reader/publisher accounts.
+- Version/commit/build image tags, publishing, reader pull verification by digest,
+  image-ID comparison and release manifests for retrieval/rollback.
+- Jenkins Maven publishing after tests/quality gates, followed by image builds,
+  push/pull verification and staging deployment. Only trusted main runs publish;
+  PR and scheduled runs do not. All seven images, including frontend, publish.
+- Secure credential setup, isolated temporary Docker login files, archived release
+  manifests and troubleshooting instructions.
+
+Follow the [Docker and CI runbook](docs/NEXUS_DOCKER_CI_RUNBOOK.md) for exact commands,
+TLS/DNS setup, Jenkins credential IDs and acceptance checks. Offline tests and
+configuration checks pass; these results do not establish live push/pull success
+or a successful complete Jenkins run. Running Nexus inside Docker is separate
+from storing Buy02 images in its Docker repository.
+
+**Integration rules:** reuse the existing Nexus Compose deployment, repository
+configuration and Maven tooling. Coordinate changes to shared Nexus files with
+Anas, work on separate feature branches and never commit credentials. Do not
+replace Maven configuration unnecessarily or give CI administrator credentials.
+
+**Acceptance criteria:** all six images can be pushed and pulled with verified
+digests; an authorized code push builds, tests and publishes Maven artifacts and
+images; a failing build/test prevents publishing; reader accounts cannot publish;
+the documented workflow works with Ayoub's own credentials. Full team integration
+also requires selecting a previous version and demonstrating rollback.
+
+### Project task tracking
+
+Verified host results below refer to Anas's recorded evidence, not a new live run
+on Ayoub's machine.
+
+| Task | Owner | Status |
+| --- | --- | --- |
+| Nexus Docker Compose setup | Anas | Verified on Anas's host; local config validation passes |
+| Persistent storage | Anas | Verified on Anas's host |
+| Nexus health checks | Anas | Verified on Anas's host; local runtime unverified |
+| Maven repository configuration | Anas | Verified in completion report |
+| Maven integration | Anas | Verified in report; local configuration audit passes |
+| Maven artifact publishing | Anas | Six SNAPSHOT artifacts verified in report |
+| Dependency caching and versioning | Anas | Cache/current version retrieval verified; two distinct versions and rollback still to demonstrate |
+| RBAC and security | Anas | Access checks verified; encryption-key warning deferred |
+| Six application Docker images | Ayoub | Dockerfiles/build stages exist; verify builds locally |
+| Nexus Docker registry | Ayoub | Provisioning/TLS/RBAC implemented; live verification pending |
+| Docker push/pull verification | Ayoub | Digest/reader verification implemented and unit-tested; live run pending |
+| CI/CD automation | Ayoub | Nexus publishing stages implemented; credentials/connectivity and live run pending |
+| Final end-to-end team integration | Anas + Ayoub | Pending |
 
 ### Verified Maven results
 
@@ -470,11 +563,28 @@ python3 scripts/nexus/manage.py audit
 python3 -m unittest discover -s scripts/nexus -p 'test_*.py' -v
 ```
 
-### First-time setup on another developer's machine
+### Getting Started — Ayoub
 
-Use a fresh clone with Docker Compose v2, Python 3 and the existing Java/Maven
-requirements. No personal Windows paths, existing database or private files
-are needed:
+Use Git, Docker Compose v2, Python 3 and Java 21 for the existing build/test
+workflow (service POMs target Java 17). Maven wrappers are included. Do not change
+Java or Spring Boot versions for this handoff. Use your own passwords and storage;
+Anas's Docker volumes, WSL paths and private files are not required.
+
+On a fresh machine, clone and create your feature branch. If already in the
+updated checkout, skip cloning and create the branch there instead:
+
+```bash
+git clone https://github.com/AyyoubMh48/buy-02.git
+cd buy-02
+git switch -c feature/ayoub-docker-ci
+```
+
+If that branch already exists, use `git switch feature/ayoub-docker-ci`.
+The following commands use existing repository tooling documented in the
+[onboarding runbook](docs/NEXUS_MAVEN_RUNBOOK.md#fresh-clone-onboarding-for-teammates).
+They were verified as described in Anas's report, with the fresh-instance EULA
+limitation above; they have not been run successfully against a live instance in
+this checkout. Run only on your independent fresh installation:
 
 ```bash
 cd nexus
@@ -492,6 +602,38 @@ fresh instance. Existing accounts retain their passwords. The finish workflow
 provisions idempotently, builds/tests/deploys six SNAPSHOT artifacts and verifies
 them. It publishes new timestamped builds, so do not rerun it just to inspect
 already verified artifacts. See the runbook for individual verification commands.
+
+For individual Maven commands, load your own credential file privately:
+
+```bash
+set -a
+source /tmp/buy02-nexus-team.env
+set +a
+python3 scripts/nexus/manage.py audit
+python3 scripts/nexus/manage.py verify-config
+```
+
+The private file contains administrator credentials for provisioning. Supply only
+the reader/publisher variables listed below to CI. Never print or commit the file.
+
+Inspect the existing Dockerfiles and pipeline before live integration:
+
+```bash
+for service in discovery gateway user-service product-service media-service order-service; do
+  less "$service/Dockerfile"
+done
+less Jenkinsfile
+less .github/workflows/quality.yml
+```
+
+Next follow the [Docker/CI runbook](docs/NEXUS_DOCKER_CI_RUNBOOK.md) to configure
+the implemented registry and Jenkins publishing. Live startup, credentials, TLS
+trust and end-to-end verification remain necessary. Verify the acceptance criteria
+above, including a failed-test run and an end-to-end successful run, before marking
+them complete. Localhost Nexus is
+suitable for local testing; remote runners need a securely reachable endpoint or
+an appropriately connected self-hosted runner. Containerized Jenkins also needs
+an explicit route to Nexus because its localhost is a different network namespace.
 
 ### Maven, security and CI handoff
 

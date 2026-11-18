@@ -11,6 +11,14 @@ pipeline {
     }
     environment {
         BRANCH_NAME = "${env.GIT_BRANCH ? env.GIT_BRANCH.replace('origin/', '') : 'main'}"
+        // Read-only Nexus credentials apply to dependency/plugin resolution in every Maven stage.
+        NEXUS_URL = credentials('nexus-url')
+        NEXUS_READER = credentials('nexus-maven-reader')
+        NEXUS_READ_USERNAME = "${NEXUS_READER_USR}"
+        NEXUS_READ_PASSWORD = "${NEXUS_READER_PSW}"
+        NEXUS_CA_BUNDLE = credentials('nexus-ca')
+        NEXUS_JAVA_TRUSTSTORE = credentials('nexus-java-truststore')
+        JAVA_TOOL_OPTIONS = "-Djavax.net.ssl.trustStore=\"${NEXUS_JAVA_TRUSTSTORE}\" -Djavax.net.ssl.trustStorePassword=changeit"
     }
     stages {
         // ========================================
@@ -28,7 +36,7 @@ pipeline {
         stage('Product Service Tests') {
             steps {
                 dir('product-service') {
-                    sh 'bash ./mvnw -B clean test'
+                    sh 'bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B clean test'
                 }
             }
         }
@@ -36,7 +44,7 @@ pipeline {
         stage('User Service Tests') {
             steps {
                 dir('user-service') {
-                    sh 'bash ./mvnw -B clean test'
+                    sh 'bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B clean test'
                 }
             }
         }
@@ -44,7 +52,7 @@ pipeline {
         stage('Media Service Tests') {
             steps {
                 dir('media-service') {
-                    sh 'bash ./mvnw -B clean test'
+                    sh 'bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B clean test'
                 }
             }
         }
@@ -52,7 +60,7 @@ pipeline {
         stage('Order Service Tests') {
             steps {
                 dir('order-service') {
-                    sh 'bash ./mvnw -B clean test'
+                    sh 'bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B clean test'
                 }
             }
         }
@@ -71,7 +79,7 @@ pipeline {
                             set -a
                             . "$ENV_FILE"
                             set +a
-                            bash ./mvnw -B clean test
+                            bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B clean test
                         '''
                     }
                 }
@@ -81,7 +89,7 @@ pipeline {
         stage('Discovery Tests') {
             steps {
                 dir('discovery') {
-                    sh 'bash ./mvnw -B clean test'
+                    sh 'bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B clean test'
                 }
             }
         }
@@ -102,16 +110,16 @@ pipeline {
         stage('Package Backend') {
             steps {
                 dir('product-service') {
-                    sh 'bash ./mvnw -B verify -DskipTests'
+                    sh 'bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B verify -DskipTests'
                 }
                 dir('user-service') {
-                    sh 'bash ./mvnw -B verify -DskipTests'
+                    sh 'bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B verify -DskipTests'
                 }
                 dir('media-service') {
-                    sh 'bash ./mvnw -B verify -DskipTests'
+                    sh 'bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B verify -DskipTests'
                 }
                 dir('order-service') {
-                    sh 'bash ./mvnw -B verify -DskipTests'
+                    sh 'bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B verify -DskipTests'
                 }
                 withCredentials([file(credentialsId: 'buy01-env', variable: 'ENV_FILE')]) {
                     dir('gateway') {
@@ -120,12 +128,12 @@ pipeline {
                             set -a
                             . "$ENV_FILE"
                             set +a
-                            bash ./mvnw -B verify -DskipTests
+                            bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B verify -DskipTests
                         '''
                     }
                 }
                 dir('discovery') {
-                    sh 'bash ./mvnw -B verify -DskipTests'
+                    sh 'bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B verify -DskipTests'
                 }
             }
         }
@@ -213,7 +221,7 @@ pipeline {
                                             sh '''
                                                 set +x
                                                 test -s target/site/jacoco/jacoco.xml
-                                                bash ./mvnw -B org.sonarsource.scanner.maven:sonar-maven-plugin:5.8.0.7211:sonar \\
+                                                bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B org.sonarsource.scanner.maven:sonar-maven-plugin:5.8.0.7211:sonar \\
                                                   -Dsonar.projectKey="$SONAR_PROJECT_KEY" \\
                                                   -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
                                             '''
@@ -241,6 +249,27 @@ pipeline {
                 }
             }
         }
+        stage('Publish Maven Artifacts to Nexus') {
+            when {
+                expression { env.BRANCH_NAME == 'main' && !env.CHANGE_ID && !currentBuild.getBuildCauses('hudson.triggers.TimerTrigger$TimerTriggerCause') }
+            }
+            steps {
+                withCredentials([
+                    usernamePassword(credentialsId: 'nexus-maven-publisher', usernameVariable: 'NEXUS_PUBLISH_USERNAME', passwordVariable: 'NEXUS_PUBLISH_PASSWORD'),
+                    file(credentialsId: 'buy01-env', variable: 'ENV_FILE')
+                ]) {
+                    sh '''
+                        set +x
+                        set -eu
+                        set -a
+                        . "$ENV_FILE"
+                        set +a
+                        python3 scripts/nexus/manage.py publish all
+                    '''
+                }
+            }
+        }
+
         // Image builds start only after all Quality Gates pass.
         stage('Build Product Image') {
             steps {
@@ -357,6 +386,28 @@ pipeline {
         // ========================================
         // 8. Prepare TLS Certificates
         // ========================================
+        stage('Publish and Verify Nexus Images') {
+            when {
+                expression { env.BRANCH_NAME == 'main' && !env.CHANGE_ID && !currentBuild.getBuildCauses('hudson.triggers.TimerTrigger$TimerTriggerCause') }
+            }
+            steps {
+                withCredentials([
+                    string(credentialsId: 'nexus-docker-registry', variable: 'NEXUS_DOCKER_REGISTRY'),
+                    usernamePassword(credentialsId: 'nexus-docker-publisher', usernameVariable: 'NEXUS_DOCKER_PUBLISH_USERNAME', passwordVariable: 'NEXUS_DOCKER_PUBLISH_PASSWORD'),
+                    usernamePassword(credentialsId: 'nexus-docker-reader', usernameVariable: 'NEXUS_DOCKER_READ_USERNAME', passwordVariable: 'NEXUS_DOCKER_READ_PASSWORD')
+                ]) {
+                    sh '''
+                        set +x
+                        set -eu
+                        release_tag=$(python3 scripts/nexus/images.py tag --build "$BUILD_NUMBER")
+                        python3 scripts/nexus/images.py publish --source-tag "$BUILD_NUMBER" \
+                            --tag "$release_tag" --include-frontend \
+                            --manifest "reports/nexus/release-${BUILD_NUMBER}.json"
+                    '''
+                }
+            }
+        }
+
         stage('Prepare Deployment Files') {
             when {
                 expression { env.BRANCH_NAME == 'main' && !currentBuild.getBuildCauses('hudson.triggers.TimerTrigger$TimerTriggerCause') }
@@ -689,6 +740,7 @@ pipeline {
         always {
             // Archive and publish JUnit test reports for all microservices
             archiveArtifacts artifacts: '**/target/site/jacoco/**, frontend/coverage/frontend/**', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'reports/nexus/*.json', allowEmptyArchive: true
             junit testResults: '**/target/surefire-reports/*.xml', allowEmptyResults: true
             echo 'Pipeline finished.'
         }

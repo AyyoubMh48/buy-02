@@ -2,6 +2,13 @@
 
 set -eu
 
+# Trust the optional public local-registry CA for docker login inside Jenkins.
+# The daemon's trust is configured separately on the Docker host.
+if [ -s /run/secrets/nexus-ca.crt ]; then
+    install -m 0644 /run/secrets/nexus-ca.crt /usr/local/share/ca-certificates/buy02-nexus.crt
+    update-ca-certificates >/dev/null
+fi
+
 # The rootless-host profile mounts the existing daemon socket. Match its mapped
 # group before su initializes Jenkins' supplementary groups; never chmod the socket.
 if [ -n "${JENKINS_DOCKER_SOCKET:-}" ]; then

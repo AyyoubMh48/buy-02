@@ -41,6 +41,9 @@ jobs:
         run: |
           python3 -m unittest discover -s jenkins-lab/sonar-init -p 'test_*.py'
           python3 -m unittest discover -s .ci -p 'test_*.py'
+          python3 -m unittest discover -s scripts/nexus -p 'test_*.py'
+          python3 scripts/nexus/manage.py audit
+          bash -n scripts/nexus/create_registry_tls.sh
           bash -n jenkins-lab/docker-entrypoint.sh
       - name: Frontend tests and coverage
         working-directory: frontend
