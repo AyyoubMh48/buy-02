@@ -738,10 +738,15 @@ pipeline {
             }
         }
         always {
-            // Archive and publish JUnit test reports for all microservices
-            archiveArtifacts artifacts: '**/target/site/jacoco/**, frontend/coverage/frontend/**', allowEmptyArchive: true
-            archiveArtifacts artifacts: 'reports/nexus/*.json', allowEmptyArchive: true
-            junit testResults: '**/target/surefire-reports/*.xml', allowEmptyResults: true
+            script {
+                if (env.WORKSPACE) {
+                    archiveArtifacts artifacts: '**/target/site/jacoco/**, frontend/coverage/frontend/**', allowEmptyArchive: true
+                    archiveArtifacts artifacts: 'reports/nexus/*.json', allowEmptyArchive: true
+                    junit testResults: '**/target/surefire-reports/*.xml', allowEmptyResults: true
+                } else {
+                    echo 'Skipping report publication because the build workspace is unavailable.'
+                }
+            }
             echo 'Pipeline finished.'
         }
     }

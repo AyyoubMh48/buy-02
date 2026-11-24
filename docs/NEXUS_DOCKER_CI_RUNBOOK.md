@@ -98,10 +98,18 @@ Both the Docker daemon and the Docker CLI process need to trust the local CA.
 On a conventional Linux daemon, install the public `ca.crt` as
 `/etc/docker/certs.d/nexus.buy02.test:5443/ca.crt` and into the operating system
 CA store. For a localhost-only setup use the matching `localhost:5443` directory.
-Docker Desktop/rootless installations may need their platform-specific CA setup;
-verify the active daemon/context before installing anything. These host settings
-are not changed by the repository scripts. Do not enable an insecure registry or
-disable TLS certificate validation.
+For Linux Docker running under RootlessKit, install the CA in the Docker
+service user's configuration directory instead:
+
+```bash
+install -D -m 0644 "$NEXUS_TLS_DIR/ca.crt" \
+  "${XDG_CONFIG_HOME:-$HOME/.config}/docker/certs.d/nexus.buy02.test:5443/ca.crt"
+```
+
+Use the `XDG_CONFIG_HOME` value from the daemon's environment if it differs
+from your shell. The daemon still needs a DNS or hosts entry for the registry.
+Verify the active daemon/context before installing the CA. A successful
+`docker login` alone does not verify trust for image push and pull.
 
 Validate HTTPS before sending credentials:
 
@@ -154,24 +162,56 @@ tag when resuming an incomplete upload.
 
 ## 5. Connect Jenkins and configure credentials
 
-The Jenkins image now includes Python 3. Rebuild/restart Jenkins using the normal
-launcher after active builds finish. For the local Compose TLS endpoint:
+JCasC creates the Nexus credentials from the machine's local files. Run the
+Maven and Docker credential setup and provisioning steps first. From the repo
+root, load the two private environment files created during setup. Adjust the
+paths if you chose different filenames.
 
 ```bash
-cp .local/nexus-tls/ca.crt jenkins-lab/jenkins-secrets/nexus-ca.crt
+(
+  set -eu
+  umask 077
+  source /tmp/buy02-nexus-team.env
+  source .local/nexus-docker.env
+  for account in NEXUS_READ NEXUS_PUBLISH NEXUS_DOCKER_READ NEXUS_DOCKER_PUBLISH; do
+    for field in USERNAME PASSWORD; do
+      key="${account}_${field}"
+      test -n "${!key}" || exit 1
+      printf '%s' "${!key}" > "jenkins-lab/jenkins-secrets/$key"
+      chmod 600 "jenkins-lab/jenkins-secrets/$key"
+    done
+  done
+  install -m 0600 .local/nexus-tls/ca.crt jenkins-lab/jenkins-secrets/nexus-ca.crt
+  install -m 0600 .local/nexus-tls/java-cacerts jenkins-lab/jenkins-secrets/nexus-java-cacerts
+)
+```
+
+Run the Bash block in Bash if your interactive shell uses a different syntax.
+The default CI endpoints are listed below. To override them, write one value
+per file in `jenkins-lab/jenkins-secrets/NEXUS_CI_URL` and
+`jenkins-lab/jenkins-secrets/NEXUS_CI_REGISTRY`.
+
+If the release pipeline lives in a fork, put its GitHub `owner/repository`
+name in `jenkins-lab/jenkins-secrets/github-release-repository`. JCasC uses it
+for `first-pipeline`. The default is `AyyoubMh48/buy-02`.
+
+After active builds finish, rebuild Jenkins and restart it to load the files.
+
+```bash
 NEXUS_CI_NETWORK=true bash scripts/run-jenkins-host.sh
+docker restart jenkins
 ```
 
 The launcher adds `nexus/compose.jenkins-network.yml`, joining Jenkins to the
 existing `buy02-artifacts` network. It preserves the Sonar network. The Docker
 daemon still needs the host-side registry DNS and CA trust from step 3.
 
-In **Manage Jenkins → Credentials → System → Global credentials**, configure:
+JCasC registers these IDs:
 
 | ID | Kind | Value |
 | --- | --- | --- |
 | `nexus-url` | Secret text | `https://nexus.buy02.test:8443` |
-| `nexus-maven-reader` | Username/password | Anas-compatible Maven reader |
+| `nexus-maven-reader` | Username/password | Maven reader |
 | `nexus-maven-publisher` | Username/password | Maven publisher |
 | `nexus-docker-registry` | Secret text | `nexus.buy02.test:5443` |
 | `nexus-docker-reader` | Username/password | Dedicated Docker reader |
@@ -179,9 +219,9 @@ In **Manage Jenkins → Credentials → System → Global credentials**, configu
 | `nexus-ca` | Secret file | Public `.local/nexus-tls/ca.crt` |
 | `nexus-java-truststore` | Secret file | `.local/nexus-tls/java-cacerts` |
 
-Never upload CA/server private keys or administrator credentials. The startup
+Keep the local credential files out of Git. The startup
 script installs the optional mounted `nexus-ca.crt` into Jenkins's OS trust store
-for `docker login`. The uploaded `nexus-ca` credential configures Python,
+for `docker login`. The `nexus-ca` credential configures Python,
 not Docker's OS trust. The Java truststore contains default public CAs plus the
 local CA, with the standard `changeit` password (it holds no private keys).
 

@@ -64,6 +64,58 @@ credentials:
     system:
         domainCredentials:
             - credentials:
+                  # BEGIN NEXUS TRUSTSTORE
+                  - file:
+                        scope: GLOBAL
+                        id: "nexus-java-truststore"
+                        description: "Java truststore for Nexus TLS"
+                        fileName: "java-cacerts"
+                        secretBytes: "${readFileBase64:${NEXUS_TRUSTSTORE_PATH}}"
+                  # END NEXUS TRUSTSTORE
+
+                  # BEGIN NEXUS ENDPOINTS
+                  - string:
+                        scope: GLOBAL
+                        id: "nexus-url"
+                        secret: "${NEXUS_CI_URL}"
+
+                  - string:
+                        scope: GLOBAL
+                        id: "nexus-docker-registry"
+                        secret: "${NEXUS_CI_REGISTRY}"
+                  # END NEXUS ENDPOINTS
+
+                  # BEGIN NEXUS CA
+                  - file:
+                        scope: GLOBAL
+                        id: "nexus-ca"
+                        fileName: "nexus-ca.crt"
+                        secretBytes: "${readFileBase64:${NEXUS_CA_PATH}}"
+                  # END NEXUS CA
+
+                  # BEGIN NEXUS ACCOUNTS
+                  - usernamePassword:
+                        scope: GLOBAL
+                        id: "nexus-maven-reader"
+                        username: "${NEXUS_READ_USERNAME}"
+                        password: "${NEXUS_READ_PASSWORD}"
+                  - usernamePassword:
+                        scope: GLOBAL
+                        id: "nexus-maven-publisher"
+                        username: "${NEXUS_PUBLISH_USERNAME}"
+                        password: "${NEXUS_PUBLISH_PASSWORD}"
+                  - usernamePassword:
+                        scope: GLOBAL
+                        id: "nexus-docker-reader"
+                        username: "${NEXUS_DOCKER_READ_USERNAME}"
+                        password: "${NEXUS_DOCKER_READ_PASSWORD}"
+                  - usernamePassword:
+                        scope: GLOBAL
+                        id: "nexus-docker-publisher"
+                        username: "${NEXUS_DOCKER_PUBLISH_USERNAME}"
+                        password: "${NEXUS_DOCKER_PUBLISH_PASSWORD}"
+                  # END NEXUS ACCOUNTS
+
                   # BEGIN SONAR CREDENTIALS
                   # ==================================
                   # SonarQube - Product Service
@@ -232,7 +284,7 @@ jobs:
 
                               remote {
 
-                                  url('https://github.com/AyyoubMh48/buy-02')
+                                  url('https://github.com/${GITHUB_RELEASE_REPOSITORY}')
 
                                   credentials('github-mr-jenk')
 

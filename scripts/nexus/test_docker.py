@@ -221,7 +221,7 @@ class ImageTests(unittest.TestCase):
             if args[0] == 'push':
                 if '/rbac-probe:' in args[1]:
                     return subprocess.CompletedProcess([], 0 if allow_reader_push else 1,
-                                                       '' if allow_reader_push else 'denied: access forbidden')
+                                                       '' if allow_reader_push else 'error from registry: access to the requested resource is not authorized')
                 if fail_push:
                     raise NexusError('registry upload failed')
                 return subprocess.CompletedProcess([], 0, 'digest: ' + DIGEST)

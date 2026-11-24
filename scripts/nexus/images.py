@@ -151,7 +151,7 @@ def publish(args):
         docker(['tag', entries[0]['service'] + ':' + source_tag, probe], reader)
         try:
             result = docker(['push', probe], reader, check=False)
-            if result.returncode == 0 or not re.search(r'denied|unauthorized|forbidden|403', result.stdout, re.I):
+            if result.returncode == 0 or not re.search(r'denied|unauthorized|not authorized|forbidden|403', result.stdout, re.I):
                 raise NexusError('Reader upload denial was not demonstrated; inspect Docker RBAC.')
         finally:
             # Remove only the temporary local probe tag, never a remote artifact.
