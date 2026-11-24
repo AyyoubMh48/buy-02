@@ -11,7 +11,7 @@ DESIRED = {
     'name': REPOSITORY, 'online': True,
     'storage': {'blobStoreName': 'default', 'strictContentTypeValidation': True,
                 'writePolicy': 'ALLOW_ONCE'},
-    'docker': {'v1Enabled': False, 'forceBasicAuth': True, 'httpPort': 8082},
+    'docker': {'v1Enabled': False, 'forceBasicAuth': False, 'httpPort': 8082},
 }
 
 
