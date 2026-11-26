@@ -1,5 +1,4 @@
 """Credential loader safety checks; use only synthetic test values."""
-import os
 import io
 import contextlib
 from unittest.mock import Mock, patch

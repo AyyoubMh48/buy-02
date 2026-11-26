@@ -2,11 +2,7 @@
 import argparse
 import copy
 import io
-import json
 import os
-from pathlib import Path
-import tempfile
-import subprocess
 import unittest
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError

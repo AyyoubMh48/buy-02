@@ -175,6 +175,67 @@ class ImageTests(unittest.TestCase):
             with self.assertRaises(NexusError):
                 images.read_manifest(path, 'localhost:5443')
 
+    def test_deployment_requires_all_seven_images_and_exact_build(self):
+        data = self.manifest()
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'release.json'
+            for release in ('1', '2'):
+                path.write_text(json.dumps(data))
+                with self.assertRaisesRegex(NexusError, 'all seven'):
+                    images.deployment_manifest(path, data['registry'], release)
+            frontend = dict(data['images'][0], service='frontend', repository=data['registry'] + '/buy02/frontend')
+            data['images'].append(frontend)
+            path.write_text(json.dumps(data))
+            with self.assertRaisesRegex(NexusError, 'release #2'):
+                images.deployment_manifest(path, data['registry'], '2')
+            self.assertEqual(images.deployment_manifest(path, data['registry'], '1'), data)
+
+    def test_deployment_reports_missing_manifest(self):
+        with tempfile.TemporaryDirectory() as folder:
+            missing = Path(folder) / 'release-1.json'
+            with self.assertRaisesRegex(NexusError, 'manifest is missing'):
+                images.deployment_manifest(missing, 'localhost:5443', '1')
+
+    @patch('images.docker')
+    def test_healthy_container_with_wrong_image_fails_deployment(self, docker):
+        def response(args):
+            if args[0] == 'compose':
+                return SimpleNamespace(stdout=args[-1])
+            return SimpleNamespace(stdout='sha256:' + 'c' * 64 + ' running healthy')
+
+        docker.side_effect = response
+        with self.assertRaisesRegex(NexusError, 'discovery runs .* expected'):
+            images.verify_deployment(self.manifest(), 'fixture', '/tmp/env')
+
+    def test_release_history_is_immutable_and_conflict_leaves_pointer_intact(self):
+        with tempfile.TemporaryDirectory() as folder:
+            state = Path(folder)
+            first = self.manifest()
+            images.record_release(first, state)
+            pointer = state / 'last-successful-release'
+            manifest = state / 'releases/release-1.json'
+            second = dict(first, source_tag='2')
+            images.record_release(second, state)
+            with self.assertRaisesRegex(NexusError, 'Refusing to overwrite'):
+                images.record_release(dict(first, git_commit='different'), state)
+            self.assertEqual(pointer.read_text(), '2\n')
+            self.assertEqual(json.loads(manifest.read_text()), first)
+            self.assertEqual(manifest.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(pointer.stat().st_mode & 0o777, 0o600)
+
+    @patch('images.SERVICES', ('discovery',))
+    @patch('images.coordinates', return_value=('test', 'discovery', '1.0.0'))
+    def test_extra_jar_is_rejected_before_docker_build(self, coordinates):
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / 'discovery/target'
+            target.mkdir(parents=True)
+            (target / 'discovery-1.0.0.jar').write_bytes(b'jar')
+            with patch('images.ROOT', Path(folder)):
+                images.check_jars()
+                (target / 'discovery-1.0.0-sources.jar').write_bytes(b'sources')
+                with self.assertRaisesRegex(NexusError, 'requires exactly'):
+                    images.check_jars()
+
     @patch('images.docker')
     @patch('images.image_id', return_value='sha256:' + 'c' * 64)
     def test_mismatched_pull_never_retags_for_deployment(self, identify, docker):

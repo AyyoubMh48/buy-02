@@ -9,11 +9,15 @@ import ssl
 import subprocess
 import sys
 import tempfile
+import time
 from uuid import uuid4
 from urllib import error, parse, request
 
 from manage import ROOT, SERVICES, coordinates
 from nexus_api import NexusError, NoRedirect, required
+
+APPLICATIONS = SERVICES + ('frontend',)
+PLATFORM = ('product-mongodb', 'media-mongodb', 'user-mongodb', 'order-mongodb', 'kafka')
 
 
 def registry(value):
@@ -78,11 +82,18 @@ def image_id(reference, config=None):
 
 
 def read_manifest(path, host):
-    data = json.loads(Path(path).read_text())
+    try:
+        data = json.loads(Path(path).read_text())
+    except FileNotFoundError:
+        raise NexusError(f'Release manifest is missing: {path}') from None
+    if not isinstance(data, dict):
+        raise NexusError('Release manifest must be a JSON object.')
     if data.get('schema') != 1 or data.get('registry') != host:
         raise NexusError('Manifest schema/registry mismatch.')
     tag(data.get('source_tag', ''))
     entries = data.get('images', [])
+    if not isinstance(entries, list) or any(not isinstance(item, dict) for item in entries):
+        raise NexusError('Release manifest images must be a list of objects.')
     names = [item.get('service') for item in entries]
     expected = set(SERVICES) | ({'frontend'} if 'frontend' in names else set())
     if len(names) != len(expected) or set(names) != expected:
@@ -96,10 +107,34 @@ def read_manifest(path, host):
     return data
 
 
+def deployment_manifest(path, host, release):
+    if not re.fullmatch(r'[1-9][0-9]*', release):
+        raise NexusError('Deployment release must be a positive Jenkins build number.')
+    data = read_manifest(path, host)
+    if data['source_tag'] != release or {item['service'] for item in data['images']} != set(APPLICATIONS):
+        raise NexusError(f'Manifest must describe release #{release} and all seven application images: {path}')
+    return data
+
+
+def check_jars():
+    for service in SERVICES:
+        _, artifact, version = coordinates(service)
+        target = ROOT / service / 'target'
+        expected = target / f'{artifact}-{version}.jar'
+        matches = sorted(target.glob('*.jar'))
+        if matches != [expected] or not expected.is_file() or not expected.stat().st_size:
+            found = ', '.join(path.name for path in matches) or 'none'
+            raise NexusError(f'{service} Docker build requires exactly {expected.name} in target/; found: {found}')
+        print(f'VERIFIED Docker build input: {service}/target/{expected.name}')
+
+
 def pull(data, config, smoke=False):
     for item in data['images']:
         pinned = item['repository'] + '@' + item['digest']
-        docker(['pull', pinned], config)
+        try:
+            docker(['pull', pinned], config)
+        except NexusError as exc:
+            raise NexusError(f'Cannot retrieve {item["service"]} at {item["digest"]}: {exc}') from exc
         if image_id(pinned, config) != item['image_id']:
             raise NexusError('Pulled image differs from the published image: ' + item['service'])
         if smoke and item['service'] != 'frontend':
@@ -107,6 +142,60 @@ def pull(data, config, smoke=False):
         # Restore the exact source tag expected by the existing staging Compose/rollback.
         docker(['tag', pinned, item['service'] + ':' + tag(data['source_tag'])], config)
         print('VERIFIED pull ' + pinned)
+
+
+def verify_deployment(data, project, env_file):
+    expected = {item['service']: item['image_id'] for item in data['images']}
+    compose = ['compose', '-p', project, '--env-file', env_file, 'ps', '--all', '--quiet']
+    for service in PLATFORM + APPLICATIONS:
+        ids = docker(compose + [service]).stdout.split()
+        if len(ids) != 1:
+            raise NexusError(f'Expected one container for {project}/{service}; found {len(ids)}.')
+        for attempt in range(18):
+            actual, state, health = docker([
+                'inspect', '--format',
+                '{{.Image}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}',
+                ids[0],
+            ]).stdout.split()
+            if service in expected and actual != expected[service]:
+                raise NexusError(f'{service} runs {actual}; expected {expected[service]} from release #{data["source_tag"]}.')
+            if state == 'running' and health == 'healthy':
+                print(f'VERIFIED running {service}: {actual} ({health})', flush=True)
+                break
+            if state in ('exited', 'dead', 'removing') or attempt == 17:
+                raise NexusError(f'{project}/{service} did not become healthy (state={state}, health={health}).')
+            print(f'Waiting for {project}/{service} ({state}, {health})', flush=True)
+            time.sleep(5)
+
+
+def record_release(data, state):
+    release = data['source_tag']
+    history = state / 'releases'
+    history.mkdir(mode=0o700, parents=True, exist_ok=True)
+    manifest = history / f'release-{release}.json'
+    pointer = state / 'last-successful-release'
+    for directory, contents, destination, immutable in (
+        (history, json.dumps(data, indent=2) + '\n', manifest, True),
+        (state, release + '\n', pointer, False),
+    ):
+        with tempfile.NamedTemporaryFile(mode='w', dir=directory, delete=False) as temp:
+            temporary = Path(temp.name)
+        try:
+            with temporary.open('w') as stream:
+                stream.write(contents)
+                stream.flush()
+                os.fsync(stream.fileno())
+            if immutable:
+                try:
+                    os.link(temporary, destination)
+                except FileExistsError:
+                    if json.loads(destination.read_text()) != data:
+                        raise NexusError(f'Refusing to overwrite existing release manifest: {destination}') from None
+            else:
+                os.replace(temporary, destination)
+        finally:
+            temporary.unlink(missing_ok=True)
+    print(f'Recorded healthy release #{release}: {manifest}')
 
 
 def publish(args):
@@ -163,6 +252,7 @@ def publish(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
+    commands.add_parser('check-jars', help='Reject ambiguous backend Docker build inputs')
     p = commands.add_parser('tag', help='Generate version/commit/build tag')
     p.add_argument('--build', required=True)
     p = commands.add_parser('build', help='Build existing packaged application artifacts')
@@ -175,9 +265,18 @@ def main():
     p.add_argument('--include-frontend', action='store_true')
     p = commands.add_parser('pull', help='Retrieve an existing release, including rollback')
     p.add_argument('--manifest', required=True)
+    p.add_argument('--release', help='Require all seven images and this Jenkins build number')
+    p = commands.add_parser('verify-deployment', help='Verify Compose health and running image identities')
+    p.add_argument('--manifest', required=True)
+    p.add_argument('--release', required=True)
+    p.add_argument('--project', required=True)
+    p.add_argument('--env-file', required=True)
+    p.add_argument('--record-in', type=Path)
     args = parser.parse_args()
     try:
-        if args.command == 'tag':
+        if args.command == 'check-jars':
+            check_jars()
+        elif args.command == 'tag':
             if not re.fullmatch(r'[0-9]+', args.build):
                 raise NexusError('Build identifier must be numeric.')
             versions = {coordinates(name)[2] for name in SERVICES}
@@ -187,19 +286,28 @@ def main():
                                     capture_output=True, text=True, check=True).stdout.strip()
             print(tag(next(iter(versions)) + '-g' + commit + '-b' + args.build))
         elif args.command == 'build':
+            check_jars()
             for name in SERVICES + (('frontend',) if args.include_frontend else ()):
                 print(docker(['build', '--load', '-t', name + ':' + tag(args.source_tag),
                               str(ROOT / name)]).stdout, end='')
         elif args.command == 'publish':
             publish(args)
-        else:
+        elif args.command == 'pull':
             host = registry(required('NEXUS_DOCKER_REGISTRY'))
-            data = read_manifest(args.manifest, host)
+            data = (deployment_manifest(args.manifest, host, args.release) if args.release is not None
+                    else read_manifest(args.manifest, host))
             verify_tls(host)
             with tempfile.TemporaryDirectory(prefix='buy02-docker-read-') as reader:
                 login(reader, host, 'NEXUS_DOCKER_READ')
                 pull(data, reader, smoke=True)
-    except (NexusError, OSError, ValueError, KeyError, subprocess.CalledProcessError) as exc:
+        else:
+            host = registry(required('NEXUS_DOCKER_REGISTRY'))
+            data = deployment_manifest(args.manifest, host, args.release)
+            os.environ['APP_IMAGE_TAG'] = args.release
+            verify_deployment(data, args.project, args.env_file)
+            if args.record_in is not None:
+                record_release(data, args.record_in)
+    except (NexusError, OSError, ValueError, TypeError, KeyError, subprocess.CalledProcessError) as exc:
         print('ERROR: ' + str(exc), file=sys.stderr)
         return 1
     return 0

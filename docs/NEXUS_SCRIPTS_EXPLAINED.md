@@ -3,21 +3,18 @@
 Docker Compose is the supported Nexus deployment. This guide inventories the
 remaining project files and the task each one serves.
 
-## File classification
+## Maven deployment files and tools
 
-| File | Classification | Purpose |
-| --- | --- | --- |
-| `nexus/docker-compose.yml` | KEEP | Pinned official image, localhost-only port, persistent volume and health check |
-| `nexus/maven/settings.xml` | KEEP | Maven mirror and authenticated deployment IDs |
-| `nexus/repositories.json` | KEEP | Desired hosted, proxy and group repository definitions |
-| `nexus/.gitignore` | KEEP | Excludes local env, secret, data and download files |
-| `scripts/nexus/manage.py` | KEEP | Audit, provisioning, builds, publishing, cache, retrieval and RBAC checks |
-| `scripts/nexus/nexus_api.py` | KEEP | Authenticated REST client that avoids logging credentials/response bodies |
-| `scripts/nexus/test_nexus.py` | KEEP | Unit and safety tests for Nexus tooling |
-| `scripts/nexus/setup_credentials.py` | KEEP | Private interactive setup; exclusive mode-0600 file creation outside Git |
-| `README.md` and Nexus docs | UPDATE | Current Docker workflow, evidence and remaining authenticated work |
-| Native installer, downloader, health check, systemd units and native properties | REMOVE | Superseded native deployment implementation; data/service are retained on host |
-| `scripts/nexus/test_download.py` | REMOVE | Tested only the obsolete native archive downloader |
+| File | Purpose |
+| --- | --- |
+| `nexus/docker-compose.yml` | Pinned official image, localhost-only port, persistent volume and health check |
+| `nexus/maven/settings.xml` | Maven mirror and authenticated deployment IDs |
+| `nexus/repositories.json` | Desired hosted, proxy and group repository definitions |
+| `nexus/.gitignore` | Excludes local env, secret, data and download files |
+| `scripts/nexus/manage.py` | Audit, provisioning, manual builds and publishing, cache, retrieval and RBAC checks |
+| `scripts/nexus/nexus_api.py` | Authenticated REST client used by the scripts and Jenkins Maven verification |
+| `scripts/nexus/test_nexus.py` | Unit tests for Maven repository tooling |
+| `scripts/nexus/setup_credentials.py` | Private interactive setup and the `--finish` workflow |
 
 ## Compose operations
 
@@ -58,14 +55,15 @@ configuration. Current live repository and RBAC verification passed; see the com
 
 Run `python3 scripts/nexus/manage.py audit` for local XML/coordinate checks.
 `provision` prints a plan; `provision --apply` reconciles the plan. `verify-config`
-checks server state. `build all` builds/tests six services through Nexus;
-`publish all` deploys their current POM artifacts and downloads/checksums them.
+checks server state. `build all` builds and tests six services through Nexus.
+Manual `publish all` builds, tests, deploys, and verifies their artifacts. The
+credential setup command's `--finish` workflow also calls it.
 `resolve SERVICE` retrieves a selected version; `cache` verifies a Maven Central
 artifact through the proxy/group; `verify-access` checks allowed and denied
 operations. Review the runbook before applying configuration or publishing.
 
-The tooling test suite is `python3 -m unittest discover -s scripts/nexus -p
-'test_*.py' -v`. The current recorded result is 45 tests passed.
+Run the tooling test suite with
+`python3 -m unittest discover -s scripts/nexus -p 'test_*.py' -v`.
 
 ## Backup and fallback
 
