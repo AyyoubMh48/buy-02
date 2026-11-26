@@ -1,0 +1,31 @@
+# Additive overlay: leaves Anas's Nexus image, data volume and localhost bind intact.
+# Run with -f nexus/docker-compose.yml -f nexus/compose.registry.yml.
+services:
+  nexus:
+    networks:
+      - default
+      - artifacts
+  nexus-tls:
+    image: nginx:1.28-alpine
+    restart: unless-stopped
+    depends_on:
+      nexus:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${NEXUS_TLS_PORT:-8443}:8443"
+      - "127.0.0.1:${NEXUS_REGISTRY_PORT:-5443}:5443"
+    volumes:
+      - ./registry/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${NEXUS_TLS_DIR:?Set NEXUS_TLS_DIR to the absolute certificate directory}:/etc/nginx/tls:ro
+    networks:
+      artifacts:
+        aliases:
+          - nexus.buy02.test
+    healthcheck:
+      test: [CMD-SHELL, 'wget -q -O /dev/null http://127.0.0.1:8080/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+networks:
+  artifacts:
+    name: buy02-artifacts

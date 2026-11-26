@@ -31,7 +31,9 @@ import com.buy01.order_service.security.AuthenticatedUser;
 /** Required checkout integration coverage; Docker supplies an isolated MongoDB automatically. */
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
-    "eureka.client.enabled=false"})
+    "eureka.client.enabled=false",
+    "server.ssl.enabled=false"
+})
 class CheckoutIntegrationTest {
     @Container
     @ServiceConnection

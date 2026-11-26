@@ -1,0 +1,37 @@
+[
+  {
+    "type": "hosted",
+    "config": {
+      "name": "maven-releases", "online": true,
+      "storage": {"blobStoreName": "default", "strictContentTypeValidation": true, "writePolicy": "ALLOW_ONCE"},
+      "maven": {"versionPolicy": "RELEASE", "layoutPolicy": "STRICT", "contentDisposition": "INLINE"}
+    }
+  },
+  {
+    "type": "hosted",
+    "config": {
+      "name": "maven-snapshots", "online": true,
+      "storage": {"blobStoreName": "default", "strictContentTypeValidation": true, "writePolicy": "ALLOW"},
+      "maven": {"versionPolicy": "SNAPSHOT", "layoutPolicy": "STRICT", "contentDisposition": "INLINE"}
+    }
+  },
+  {
+    "type": "proxy",
+    "config": {
+      "name": "maven-central", "online": true,
+      "storage": {"blobStoreName": "default", "strictContentTypeValidation": true},
+      "proxy": {"remoteUrl": "https://repo.maven.apache.org/maven2/", "contentMaxAge": -1, "metadataMaxAge": 1440},
+      "negativeCache": {"enabled": true, "timeToLive": 15},
+      "httpClient": {"blocked": false, "autoBlock": true},
+      "maven": {"versionPolicy": "RELEASE", "layoutPolicy": "STRICT", "contentDisposition": "INLINE"}
+    }
+  },
+  {
+    "type": "group",
+    "config": {
+      "name": "maven-public", "online": true,
+      "storage": {"blobStoreName": "default", "strictContentTypeValidation": true},
+      "group": {"memberNames": ["maven-releases", "maven-snapshots", "maven-central"]}
+    }
+  }
+]

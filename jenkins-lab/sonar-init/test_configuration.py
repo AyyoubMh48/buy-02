@@ -17,8 +17,12 @@ class ConfigurationTests(unittest.TestCase):
             secrets = root / 'secrets'
             secrets.mkdir()
             for name in ('github-username', 'github-pat', 'jenkins-admin-password', 'buy01-env',
-                         'gateway-keystore.p12', 'gateway-keystore.crt', 'gateway-keystore.key'):
+                         'gateway-keystore.p12', 'gateway-keystore.crt', 'gateway-keystore.key',
+                         'nexus-java-cacerts', 'nexus-ca.crt'):
                 (secrets / name).write_text('fixture')
+            for account in ('NEXUS_READ', 'NEXUS_PUBLISH', 'NEXUS_DOCKER_READ', 'NEXUS_DOCKER_PUBLISH'):
+                for field in ('USERNAME', 'PASSWORD'):
+                    (secrets / f'{account}_{field}').write_text('fixture')
             for component, service in bootstrap.COMPONENTS.items():
                 (secrets / f'sonar-{component}-token').write_text('fixture-' + component)
                 (secrets / f'sonar-{component}-project-key').write_text('buy01-' + service)
@@ -29,10 +33,15 @@ class ConfigurationTests(unittest.TestCase):
             entrypoint = (ROOT / 'docker-entrypoint.sh').read_text()
             output = root / 'base.yaml'
             entrypoint = entrypoint.replace('/tmp/jenkins-public.', str(root / 'public.')).replace('/run/secrets', str(secrets)).replace('/casc/jenkins.yaml', str(ROOT / 'jcasc/jenkins.yaml')).replace('/tmp/jenkins-base.yaml', str(output))
+            entrypoint = entrypoint.replace('/tmp/nexus-java-cacerts.', str(root / 'truststore.'))
+            entrypoint = entrypoint.replace('/tmp/nexus-ca.', str(root / 'nexus-ca.'))
+            entrypoint = entrypoint.replace('/tmp/jenkins-no-nexus.', str(root / 'no-nexus.'))
             # Replace only OS handoff tools in a private PATH, never start a controller.
             tools = root / 'bin'
             tools.mkdir()
             (tools / 'chown').write_text('#!/bin/sh\nexit 0\n')
+            (tools / 'install').write_text('#!/bin/sh\nif [ "$#" -eq 8 ]; then shift 6; cp "$@"; fi\n')
+            (tools / 'update-ca-certificates').write_text('#!/bin/sh\nexit 0\n')
             (tools / 'su').write_text('#!/usr/bin/env python3\nimport os,json\nprint(json.dumps({k:v for k,v in os.environ.items() if k.startswith("SONAR_") or k=="CASC_JENKINS_CONFIG"}))\n')
             for path in tools.iterdir():
                 path.chmod(0o700)
@@ -81,10 +90,11 @@ class ConfigurationTests(unittest.TestCase):
         self.assertIn("dir('order-service')", pipeline)
         self.assertIn('media-service order-service gateway discovery;', pipeline)
         self.assertIn('docker image inspect order-service:${BUILD_NUMBER}', pipeline)
-        self.assertIn('ps --all --quiet "$SERVICE"', pipeline)
-        self.assertIn('check_container "$CONTAINER_ID" || return 1', pipeline)
-        self.assertIn('media-mongodb user-mongodb order-mongodb', pipeline)
-        self.assertIn('media-service order-service gateway frontend; do', pipeline)
+        self.assertIn('images.py verify-deployment --release', pipeline)
+        self.assertIn('images.py pull --release "$previous" --manifest "$previous_manifest"', pipeline)
+        helper = (ROOT.parent / 'scripts/nexus/images.py').read_text()
+        self.assertIn("'ps', '--all', '--quiet'", helper)
+        self.assertIn("'media-mongodb', 'user-mongodb', 'order-mongodb'", helper)
         self.assertIn("'**/target/site/jacoco/**, frontend/coverage/frontend/**'", pipeline)
         workflow = (ROOT.parent / '.github/workflows/quality.yml').read_text()
         self.assertIn('media-service order-service gateway discovery;', workflow)
@@ -103,6 +113,14 @@ class ConfigurationTests(unittest.TestCase):
                     self.assertIn('${SONAR_ORDER_TOKEN}', selected)
                 else:
                     self.assertNotIn('${SONAR_', selected)
+
+    def test_incomplete_nexus_accounts_omit_account_and_endpoint_bindings(self):
+        _, selected = self.run_entrypoint('NEXUS_READ_PASSWORD')
+        self.assertNotIn('nexus-maven-reader', selected)
+        self.assertNotIn('nexus-docker-publisher', selected)
+        self.assertNotIn('nexus-url', selected)
+        self.assertIn('nexus-java-truststore', selected)
+        self.assertIn('sonar-order-token', selected)
 
 class PullRequestValidationTests(unittest.TestCase):
     def run_validator(self, metadata, number='26'):

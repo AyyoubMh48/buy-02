@@ -424,3 +424,150 @@ Legacy `jenkins-lab/compose.yml` also supports the original privileged DinD lab;
 host-daemon controller file explicitly. Preserve legacy named volumes when updating
 an existing installation; a new PC should follow the fresh setup without importing
 other people's passwords or using reset/delete-volume commands.
+
+## Nexus setup and publishing
+
+Run these commands from the repository root. You need Docker with Compose v2,
+Python 3, OpenSSL and the JDK listed in the local development section. The six
+Spring Boot services already have Maven wrappers and build executable JARs.
+
+### 1. Start Nexus
+
+Create local TLS certificates once, then start Nexus and its registry proxy.
+Reuse the same Compose project and data volume if Nexus is already installed.
+
+```bash
+test -d .local/nexus-tls || bash scripts/nexus/create_registry_tls.sh
+export NEXUS_TLS_DIR="$PWD/.local/nexus-tls"
+docker compose -p nexus -f nexus/docker-compose.yml -f nexus/compose.registry.yml \
+  up -d --wait --wait-timeout 900
+curl -fsS http://127.0.0.1:8081/service/rest/v1/status/writable
+docker compose -p nexus -f nexus/docker-compose.yml exec -T nexus id
+```
+
+Nexus should be writable and run as the non-root user with UID `200`. The
+`buy02-nexus-data` volume retains repositories and artifacts between restarts.
+Open [Nexus](http://127.0.0.1:8081). For a fresh instance, follow the first-login
+steps, accept the license agreement and disable anonymous access.
+See the [Maven runbook](docs/NEXUS_MAVEN_RUNBOOK.md#fresh-clone-onboarding-for-teammates).
+
+### 2. Set up Maven repositories
+
+After first login, run the credential helper once. Enter the administrator
+credentials and choose separate reader and publisher credentials. If the private
+file already exists, skip the helper and load the existing file.
+
+```bash
+python3 scripts/nexus/setup_credentials.py \
+  --url http://127.0.0.1:8081 --file /tmp/buy02-nexus-team.env
+set -a
+source /tmp/buy02-nexus-team.env
+set +a
+python3 scripts/nexus/manage.py provision
+```
+
+Review the plan, then apply and verify it.
+
+```bash
+python3 scripts/nexus/manage.py provision --apply
+python3 scripts/nexus/manage.py verify-config
+```
+
+| Repository | Use |
+| --- | --- |
+| `maven-releases` | Hosted release JARs |
+| `maven-snapshots` | Hosted snapshot JARs |
+| `maven-central` | Proxy and cache for Maven Central |
+| `maven-public` | Group endpoint for dependency and plugin resolution |
+
+### 3. Publish, retrieve and verify Maven artifacts
+
+On eligible main builds, Jenkins publishes the existing backend JARs and
+original POMs with Maven's `deploy-file` goal after the SonarQube Quality Gates.
+For manual publishing, load the Buy02 application environment if needed for
+tests. `manage.py publish` builds and tests the services using
+`nexus/maven/settings.xml`. Use an empty local Maven cache to demonstrate
+dependency downloads through `maven-public`.
+
+```bash
+export NEXUS_MAVEN_CACHE="$(mktemp -d)"
+python3 scripts/nexus/manage.py publish all
+python3 scripts/nexus/manage.py verify-artifact discovery --local
+python3 scripts/nexus/manage.py resolve discovery --version 0.0.1-SNAPSHOT
+python3 scripts/nexus/manage.py cache
+unset NEXUS_MAVEN_CACHE
+```
+
+Check that the JAR and POM checksums match and the dependency is visible in
+`maven-central`. To demonstrate version retrieval, use a separate test checkout
+and two unused versions. For example, publish `discovery` twice with distinct
+versions, then resolve both and verify that the older artifact is still available.
+
+```bash
+python3 scripts/nexus/manage.py set-version discovery 0.1.0
+python3 scripts/nexus/manage.py publish discovery
+python3 scripts/nexus/manage.py set-version discovery 0.1.1
+python3 scripts/nexus/manage.py publish discovery
+python3 scripts/nexus/manage.py resolve discovery --version 0.1.0
+python3 scripts/nexus/manage.py resolve discovery --version 0.1.1
+```
+
+### 4. Publish and retrieve Docker images
+
+Create the private Docker credential file once. Use the default usernames and
+press Enter at the password prompts to generate passwords for new accounts.
+Keep the Maven credentials loaded for repository provisioning.
+
+```bash
+python3 scripts/nexus/setup_docker_credentials.py
+set -a
+source .local/nexus-docker.env
+set +a
+python3 scripts/nexus/registry.py
+```
+
+Review the plan, then run `python3 scripts/nexus/registry.py --apply` followed
+by `python3 scripts/nexus/registry.py --verify`. Configure certificate trust
+for the Docker CLI and daemon before logging in.
+See the [TLS setup](docs/NEXUS_DOCKER_CI_RUNBOOK.md#3-configure-dns-and-certificate-trust).
+
+With the Maven JARs built and the registry CA trusted, push and pull the six
+backend images. Use a new build number and manifest filename for each run.
+
+```bash
+export NEXUS_DOCKER_REGISTRY=localhost:5443
+export NEXUS_CA_BUNDLE="$NEXUS_TLS_DIR/ca.crt"
+python3 scripts/nexus/images.py build --source-tag local-1
+release_tag=$(python3 scripts/nexus/images.py tag --build 1)
+python3 scripts/nexus/images.py publish --source-tag local-1 --tag "$release_tag" \
+  --manifest reports/nexus/local-1.json
+python3 scripts/nexus/images.py pull --manifest reports/nexus/local-1.json
+```
+
+The manifest records the Git commit and image digests. To retrieve a previous
+release, pass its saved manifest to the same `pull` command.
+
+### 5. Verify Jenkins publishing
+
+Configure the registry hostname, certificates and credentials in Jenkins, then
+start it with the Nexus network enabled.
+See the [Jenkins setup](docs/NEXUS_DOCKER_CI_RUNBOOK.md#5-connect-jenkins-and-configure-credentials).
+
+```bash
+NEXUS_CI_NETWORK=true bash scripts/run-jenkins-host.sh
+```
+
+Check that a regular push to `main` triggers Jenkins. In the build log, verify
+that tests and quality gates pass before publishing. Confirm that Nexus contains
+the Maven JARs and all seven Docker images, including the frontend, and that
+Jenkins archives the release manifest. Check that staging becomes healthy.
+
+### 6. View the audit evidence
+
+The [completion report](docs/NEXUS_COMPLETION_REPORT.md#jenkins-build-12-and-rollback-build-13)
+documents the successful Jenkins build #12, its seven SonarQube Quality Gates,
+and the controlled build #13 that recovered release #12. The
+[Maven runbook](docs/NEXUS_MAVEN_RUNBOOK.md#repository-layout-and-access)
+and [Docker CI runbook](docs/NEXUS_DOCKER_CI_RUNBOOK.md#4-build-publish-and-verify-images)
+show the live Nexus inventories and commands for publishing, inspecting,
+and retrieving releases.

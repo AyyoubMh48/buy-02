@@ -2,6 +2,13 @@
 
 set -eu
 
+# Trust the optional public local-registry CA for docker login inside Jenkins.
+# The daemon's trust is configured separately on the Docker host.
+if [ -s /run/secrets/nexus-ca.crt ]; then
+    install -m 0644 /run/secrets/nexus-ca.crt /usr/local/share/ca-certificates/buy02-nexus.crt
+    update-ca-certificates >/dev/null
+fi
+
 # The rootless-host profile mounts the existing daemon socket. Match its mapped
 # group before su initializes Jenkins' supplementary groups; never chmod the socket.
 if [ -n "${JENKINS_DOCKER_SOCKET:-}" ]; then
@@ -17,6 +24,13 @@ fi
 
 export GITHUB_USERNAME="$(cat /run/secrets/github-username 2>/dev/null || true)"
 export GITHUB_PAT="$(cat /run/secrets/github-pat 2>/dev/null || true)"
+GITHUB_RELEASE_REPOSITORY="$(cat /run/secrets/github-release-repository 2>/dev/null || true)"
+GITHUB_RELEASE_REPOSITORY="${GITHUB_RELEASE_REPOSITORY:-AyyoubMh48/buy-02}"
+if [[ ! "$GITHUB_RELEASE_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+    echo 'github-release-repository must contain a GitHub owner/repository name.' >&2
+    exit 1
+fi
+export GITHUB_RELEASE_REPOSITORY
 export JENKINS_ADMIN_PASSWORD="$(cat /run/secrets/jenkins-admin-password)"
 export BUY01_ENV_B64="$(base64 -w 0 /run/secrets/buy01-env)"
 export GATEWAY_P12_B64="$(base64 -w 0 /run/secrets/gateway-keystore.p12)"
@@ -73,6 +87,58 @@ if [ -z "$GITHUB_PAT" ]; then
     chown jenkins:jenkins "$public_config"
     export CASC_JENKINS_CONFIG="$public_config"
     echo "Using anonymous checkout; configure a GitHub PAT for a private repository." >&2
+fi
+
+nexus_config_filters=()
+if [ -s /run/secrets/nexus-java-cacerts ]; then
+    NEXUS_TRUSTSTORE_PATH=$(mktemp /tmp/nexus-java-cacerts.XXXXXX)
+    install -m 0600 -o jenkins -g jenkins /run/secrets/nexus-java-cacerts "$NEXUS_TRUSTSTORE_PATH"
+    export NEXUS_TRUSTSTORE_PATH
+else
+    nexus_config_filters+=(-e '/# BEGIN NEXUS TRUSTSTORE/,/# END NEXUS TRUSTSTORE/d')
+fi
+
+if [ -s /run/secrets/nexus-ca.crt ]; then
+    NEXUS_CA_PATH=$(mktemp /tmp/nexus-ca.XXXXXX)
+    install -m 0600 -o jenkins -g jenkins /run/secrets/nexus-ca.crt "$NEXUS_CA_PATH"
+    export NEXUS_CA_PATH
+else
+    nexus_config_filters+=(-e '/# BEGIN NEXUS CA/,/# END NEXUS CA/d')
+fi
+
+nexus_accounts_ready=true
+for account in NEXUS_READ NEXUS_PUBLISH NEXUS_DOCKER_READ NEXUS_DOCKER_PUBLISH; do
+    for field in USERNAME PASSWORD; do
+        key="${account}_${field}"
+        if [ ! -s "/run/secrets/$key" ]; then
+            nexus_accounts_ready=false
+            continue
+        fi
+        value=$(cat "/run/secrets/$key")
+        if [ -z "$value" ]; then
+            nexus_accounts_ready=false
+            continue
+        fi
+        export "$key=$value"
+    done
+done
+if [ "$nexus_accounts_ready" = true ]; then
+    NEXUS_CI_URL=$(cat /run/secrets/NEXUS_CI_URL 2>/dev/null || true)
+    NEXUS_CI_REGISTRY=$(cat /run/secrets/NEXUS_CI_REGISTRY 2>/dev/null || true)
+    export NEXUS_CI_URL="${NEXUS_CI_URL:-https://nexus.buy02.test:8443}"
+    export NEXUS_CI_REGISTRY="${NEXUS_CI_REGISTRY:-nexus.buy02.test:5443}"
+else
+    nexus_config_filters+=(-e '/# BEGIN NEXUS ACCOUNTS/,/# END NEXUS ACCOUNTS/d')
+    nexus_config_filters+=(-e '/# BEGIN NEXUS ENDPOINTS/,/# END NEXUS ENDPOINTS/d')
+    echo 'Nexus account files are incomplete; configure the four Nexus service accounts to enable publishing.' >&2
+fi
+
+if [ "${#nexus_config_filters[@]}" -gt 0 ]; then
+    config_without_nexus=$(mktemp /tmp/jenkins-no-nexus.XXXXXX.yaml)
+    sed "${nexus_config_filters[@]}" \
+        "${CASC_JENKINS_CONFIG:-/casc/jenkins.yaml}" > "$config_without_nexus"
+    chown jenkins:jenkins "$config_without_nexus"
+    export CASC_JENKINS_CONFIG="$config_without_nexus"
 fi
 
 exec su -s /bin/bash jenkins -c 'exec /usr/local/bin/jenkins.sh "$@"' -- "$@"

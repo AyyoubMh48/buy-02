@@ -11,6 +11,14 @@ pipeline {
     }
     environment {
         BRANCH_NAME = "${env.GIT_BRANCH ? env.GIT_BRANCH.replace('origin/', '') : 'main'}"
+        // Read-only Nexus credentials apply to dependency/plugin resolution in every Maven stage.
+        NEXUS_URL = credentials('nexus-url')
+        NEXUS_READER = credentials('nexus-maven-reader')
+        NEXUS_READ_USERNAME = "${NEXUS_READER_USR}"
+        NEXUS_READ_PASSWORD = "${NEXUS_READER_PSW}"
+        NEXUS_CA_BUNDLE = credentials('nexus-ca')
+        NEXUS_JAVA_TRUSTSTORE = credentials('nexus-java-truststore')
+        JAVA_TOOL_OPTIONS = "-Djavax.net.ssl.trustStore=\"${NEXUS_JAVA_TRUSTSTORE}\" -Djavax.net.ssl.trustStorePassword=changeit"
     }
     stages {
         // ========================================
@@ -28,7 +36,7 @@ pipeline {
         stage('Product Service Tests') {
             steps {
                 dir('product-service') {
-                    sh 'bash ./mvnw -B clean test'
+                    sh 'bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B clean test'
                 }
             }
         }
@@ -36,7 +44,7 @@ pipeline {
         stage('User Service Tests') {
             steps {
                 dir('user-service') {
-                    sh 'bash ./mvnw -B clean test'
+                    sh 'bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B clean test'
                 }
             }
         }
@@ -44,7 +52,7 @@ pipeline {
         stage('Media Service Tests') {
             steps {
                 dir('media-service') {
-                    sh 'bash ./mvnw -B clean test'
+                    sh 'bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B clean test'
                 }
             }
         }
@@ -52,7 +60,7 @@ pipeline {
         stage('Order Service Tests') {
             steps {
                 dir('order-service') {
-                    sh 'bash ./mvnw -B clean test'
+                    sh 'bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B clean test'
                 }
             }
         }
@@ -71,7 +79,7 @@ pipeline {
                             set -a
                             . "$ENV_FILE"
                             set +a
-                            bash ./mvnw -B clean test
+                            bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B clean test
                         '''
                     }
                 }
@@ -81,7 +89,7 @@ pipeline {
         stage('Discovery Tests') {
             steps {
                 dir('discovery') {
-                    sh 'bash ./mvnw -B clean test'
+                    sh 'bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B clean test'
                 }
             }
         }
@@ -102,16 +110,16 @@ pipeline {
         stage('Package Backend') {
             steps {
                 dir('product-service') {
-                    sh 'bash ./mvnw -B verify -DskipTests'
+                    sh 'bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B verify -DskipTests'
                 }
                 dir('user-service') {
-                    sh 'bash ./mvnw -B verify -DskipTests'
+                    sh 'bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B verify -DskipTests'
                 }
                 dir('media-service') {
-                    sh 'bash ./mvnw -B verify -DskipTests'
+                    sh 'bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B verify -DskipTests'
                 }
                 dir('order-service') {
-                    sh 'bash ./mvnw -B verify -DskipTests'
+                    sh 'bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B verify -DskipTests'
                 }
                 withCredentials([file(credentialsId: 'buy01-env', variable: 'ENV_FILE')]) {
                     dir('gateway') {
@@ -120,12 +128,12 @@ pipeline {
                             set -a
                             . "$ENV_FILE"
                             set +a
-                            bash ./mvnw -B verify -DskipTests
+                            bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B verify -DskipTests
                         '''
                     }
                 }
                 dir('discovery') {
-                    sh 'bash ./mvnw -B verify -DskipTests'
+                    sh 'bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B verify -DskipTests'
                 }
             }
         }
@@ -135,20 +143,7 @@ pipeline {
         // ========================================
         stage('Check Backend Artifacts') {
             steps {
-                sh '''
-                    echo "=== Product Service ==="
-                    ls -lh product-service/target/*.jar
-                    echo "=== User Service ==="
-                    ls -lh user-service/target/*.jar
-                    echo "=== Media Service ==="
-                    ls -lh media-service/target/*.jar
-                    echo "=== Order Service ==="
-                    ls -lh order-service/target/*.jar
-                    echo "=== Gateway ==="
-                    ls -lh gateway/target/*.jar
-                    echo "=== Discovery ==="
-                    ls -lh discovery/target/*.jar
-                '''
+                sh 'python3 scripts/nexus/images.py check-jars'
             }
         }
 
@@ -213,7 +208,7 @@ pipeline {
                                             sh '''
                                                 set +x
                                                 test -s target/site/jacoco/jacoco.xml
-                                                bash ./mvnw -B org.sonarsource.scanner.maven:sonar-maven-plugin:5.8.0.7211:sonar \\
+                                                bash ./mvnw -s "$WORKSPACE/nexus/maven/settings.xml" -B org.sonarsource.scanner.maven:sonar-maven-plugin:5.8.0.7211:sonar \\
                                                   -Dsonar.projectKey="$SONAR_PROJECT_KEY" \\
                                                   -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
                                             '''
@@ -241,6 +236,101 @@ pipeline {
                 }
             }
         }
+        stage('Publish Maven Artifacts to Nexus') {
+            when {
+                expression { env.BRANCH_NAME == 'main' && !env.CHANGE_ID && !currentBuild.getBuildCauses('hudson.triggers.TimerTrigger$TimerTriggerCause') }
+            }
+            steps {
+                withCredentials([
+                    usernamePassword(credentialsId: 'nexus-maven-publisher', usernameVariable: 'NEXUS_PUBLISH_USERNAME', passwordVariable: 'NEXUS_PUBLISH_PASSWORD')
+                ]) {
+                    sh(script: '''
+                        set +x
+                        set -eu
+                        export PYTHONPATH="$WORKSPACE/scripts/nexus"
+
+                        # Check every local input and reject existing releases before uploading.
+                        publish_plan=$(python3 - <<'PY'
+                        from pathlib import Path
+                        from xml.etree import ElementTree as ET
+
+                        from nexus_api import Client, artifact_directory
+
+                        publisher = Client('NEXUS_PUBLISH')
+                        Client('NEXUS_READ')
+                        ns = {'m': 'http://maven.apache.org/POM/4.0.0'}
+                        services = ('discovery', 'gateway', 'user-service', 'product-service',
+                                    'media-service', 'order-service')
+                        for service in services:
+                            pom = Path(service) / 'pom.xml'
+                            if not pom.is_file():
+                                raise SystemExit(f'Missing project POM: {pom}')
+                            project = ET.parse(pom).getroot()
+                            group, artifact, version = (
+                                project.findtext('m:' + key, default='', namespaces=ns).strip()
+                                for key in ('groupId', 'artifactId', 'version')
+                            )
+                            directory = artifact_directory(group, artifact, version)
+                            jar = Path(service) / 'target' / f'{artifact}-{version}.jar'
+                            if not jar.is_file() or jar.stat().st_size == 0:
+                                raise SystemExit(f'Missing or empty packaged JAR: {jar}')
+                            snapshot = version.endswith('-SNAPSHOT')
+                            repository = 'maven-snapshots' if snapshot else 'maven-releases'
+                            server = 'nexus-snapshots' if snapshot else 'nexus-releases'
+                            if not snapshot and publisher.exists(
+                                f'/repository/{repository}/{directory}/{artifact}-{version}.pom'
+                            ):
+                                raise SystemExit(f'Release {group}:{artifact}:{version} already exists. Use a new version.')
+                            print(service, group, artifact, version, repository, server)
+                        PY
+                        )
+                        export NEXUS_URL="${NEXUS_URL%/}"
+
+                        while read -r service group artifact version repository server; do
+                            jar="$WORKSPACE/$service/target/$artifact-$version.jar"
+                            pom="$WORKSPACE/$service/pom.xml"
+                            (
+                                cd "$service"
+                                bash ./mvnw -B -ntp -s "$WORKSPACE/nexus/maven/settings.xml" \\
+                                    org.apache.maven.plugins:maven-deploy-plugin:3.1.4:deploy-file \\
+                                    -DrepositoryId="$server" -Durl="$NEXUS_URL/repository/$repository/" \\
+                                    -DgroupId="$group" -DartifactId="$artifact" -Dversion="$version" \\
+                                    -Dpackaging=jar -Dfile="$jar" -DpomFile="$pom" -DgeneratePom=false
+                            )
+
+                            # Fetch hosted snapshot metadata and compare fresh HTTP downloads.
+                            python3 - "$group" "$artifact" "$version" "$repository" "$jar" "$pom" <<'PY'
+                        import hashlib
+                        import sys
+
+                        from nexus_api import Client, artifact_paths
+
+                        group, artifact, version, repository, jar, pom = sys.argv[1:]
+                        publisher = Client('NEXUS_PUBLISH')
+                        reader = Client('NEXUS_READ')
+                        paths = artifact_paths(publisher, repository, group, artifact, version)
+                        for extension, local_file in (('jar', jar), ('pom', pom)):
+                            digest = hashlib.sha256()
+                            with open(local_file, 'rb') as stream:
+                                for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                                    digest.update(chunk)
+                            expected = digest.hexdigest()
+                            hosted_path = paths[extension]
+                            group_path = hosted_path.replace(f'/repository/{repository}/', '/repository/maven-public/', 1)
+                            if publisher.digest(hosted_path) != expected:
+                                raise SystemExit(f'Hosted {extension} checksum mismatch: {hosted_path}')
+                            if reader.digest(group_path) != expected:
+                                raise SystemExit(f'Reader {extension} checksum mismatch: {group_path}')
+                            print(f'Verified {group}:{artifact}:{version} {extension} SHA-256 {expected}')
+                        PY
+                        done <<PLAN
+                        $publish_plan
+                        PLAN
+                    '''.stripIndent(24))
+                }
+            }
+        }
+
         // Image builds start only after all Quality Gates pass.
         stage('Build Product Image') {
             steps {
@@ -357,9 +447,31 @@ pipeline {
         // ========================================
         // 8. Prepare TLS Certificates
         // ========================================
+        stage('Publish and Verify Nexus Images') {
+            when {
+                expression { env.BRANCH_NAME == 'main' && !env.CHANGE_ID && !currentBuild.getBuildCauses('hudson.triggers.TimerTrigger$TimerTriggerCause') }
+            }
+            steps {
+                withCredentials([
+                    string(credentialsId: 'nexus-docker-registry', variable: 'NEXUS_DOCKER_REGISTRY'),
+                    usernamePassword(credentialsId: 'nexus-docker-publisher', usernameVariable: 'NEXUS_DOCKER_PUBLISH_USERNAME', passwordVariable: 'NEXUS_DOCKER_PUBLISH_PASSWORD'),
+                    usernamePassword(credentialsId: 'nexus-docker-reader', usernameVariable: 'NEXUS_DOCKER_READ_USERNAME', passwordVariable: 'NEXUS_DOCKER_READ_PASSWORD')
+                ]) {
+                    sh '''
+                        set +x
+                        set -eu
+                        release_tag=$(python3 scripts/nexus/images.py tag --build "$BUILD_NUMBER")
+                        python3 scripts/nexus/images.py publish --source-tag "$BUILD_NUMBER" \
+                            --tag "$release_tag" --include-frontend \
+                            --manifest "reports/nexus/release-${BUILD_NUMBER}.json"
+                    '''
+                }
+            }
+        }
+
         stage('Prepare Deployment Files') {
             when {
-                expression { env.BRANCH_NAME == 'main' && !currentBuild.getBuildCauses('hudson.triggers.TimerTrigger$TimerTriggerCause') }
+                expression { env.BRANCH_NAME == 'main' && !env.CHANGE_ID && !currentBuild.getBuildCauses('hudson.triggers.TimerTrigger$TimerTriggerCause') }
             }
             steps {
                 withCredentials([
@@ -417,7 +529,7 @@ pipeline {
         // ========================================
         stage('Validate Compose') {
             when {
-                expression { env.BRANCH_NAME == 'main' && !currentBuild.getBuildCauses('hudson.triggers.TimerTrigger$TimerTriggerCause') }
+                expression { env.BRANCH_NAME == 'main' && !env.CHANGE_ID && !currentBuild.getBuildCauses('hudson.triggers.TimerTrigger$TimerTriggerCause') }
             }
             steps {
                 withCredentials([
@@ -445,7 +557,7 @@ pipeline {
         // ========================================
         stage('Deploy') {
             when {
-                expression { env.BRANCH_NAME == 'main' && !currentBuild.getBuildCauses('hudson.triggers.TimerTrigger$TimerTriggerCause') }
+                expression { env.BRANCH_NAME == 'main' && !env.CHANGE_ID && !currentBuild.getBuildCauses('hudson.triggers.TimerTrigger$TimerTriggerCause') }
             }
             steps {
                 withCredentials([
@@ -454,18 +566,20 @@ pipeline {
                         variable: 'ENV_FILE'
                     )
                 ]) {
-                    sh '''
-                        set +x
-                        echo "================================"
-                        echo "Deploying release #${BUILD_NUMBER}"
-                        echo "================================"
-                        APP_IMAGE_TAG=${BUILD_NUMBER} \\
-                        docker compose \\
-                            -p "${DEPLOY_PROJECT:-buy01}" \\
-                            --env-file "$ENV_FILE" \\
-                            up -d
-                        echo "Release #${BUILD_NUMBER} containers started."
-                    '''
+                    script {
+                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE', catchInterruptions: false) {
+                            def status = sh(returnStatus: true, script: '''
+                                set +x
+                                echo "Deploying release #${BUILD_NUMBER}"
+                                APP_IMAGE_TAG="$BUILD_NUMBER" docker compose -p "${DEPLOY_PROJECT:-buy01}" \\
+                                    --env-file "$ENV_FILE" up -d --pull never
+                            ''')
+                            env.DEPLOY_EXIT_STATUS = status.toString()
+                            if (status != 0) {
+                                error("Compose failed to deploy release #${env.BUILD_NUMBER} (exit ${status})")
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -475,142 +589,63 @@ pipeline {
         // ========================================
         stage('Post-Deployment Health Check') {
             when {
-                expression { env.BRANCH_NAME == 'main' && !currentBuild.getBuildCauses('hudson.triggers.TimerTrigger$TimerTriggerCause') }
+                expression { env.BRANCH_NAME == 'main' && !env.CHANGE_ID && !currentBuild.getBuildCauses('hudson.triggers.TimerTrigger$TimerTriggerCause') }
             }
             steps {
                 withCredentials([
-                    file(
-                        credentialsId: 'buy01-env',
-                        variable: 'ENV_FILE'
-                    )
+                    file(credentialsId: 'buy01-env', variable: 'ENV_FILE'),
+                    string(credentialsId: 'nexus-docker-registry', variable: 'NEXUS_DOCKER_REGISTRY'),
+                    usernamePassword(credentialsId: 'nexus-docker-reader', usernameVariable: 'NEXUS_DOCKER_READ_USERNAME', passwordVariable: 'NEXUS_DOCKER_READ_PASSWORD')
                 ]) {
                     sh '''
                         set +x
-                        MAX_ATTEMPTS=18
-                        SLEEP_SECONDS=5
-                        RELEASE_FILE="/var/jenkins_home/deploy-secrets/${DEPLOY_PROJECT:-buy01}/last-successful-release"
-                        # ==================================
-                        # Check one container
-                        # ==================================
-                        check_container() {
-                            CONTAINER="$1"
-                            echo ""
-                            echo "--------------------------------"
-                            echo "Checking $CONTAINER"
-                            echo "--------------------------------"
-                            for i in $(seq 1 $MAX_ATTEMPTS); do
-                                STATE=$(docker inspect \\
-                                    --format='{{.State.Status}}' \\
-                                    "$CONTAINER" \\
-                                    2>/dev/null || echo "missing")
-                                HEALTH=$(docker inspect \\
-                                    --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' \\
-                                    "$CONTAINER" \\
-                                    2>/dev/null || echo "missing")
-                                echo "Attempt $i/$MAX_ATTEMPTS -> state=$STATE health=$HEALTH"
-                                # Container crashed
-                                if [ "$STATE" = "exited" ] || \\
-                                   [ "$STATE" = "dead" ] || \\
-                                   [ "$STATE" = "missing" ]; then
-                                    echo "ERROR: $CONTAINER stopped unexpectedly."
-                                    return 1
-                                fi
-                                # Docker healthcheck succeeded
-                                if [ "$HEALTH" = "healthy" ]; then
-                                    echo "$CONTAINER is healthy."
-                                    return 0
-                                fi
-                                sleep $SLEEP_SECONDS
-                            done
-                            echo "ERROR: $CONTAINER did not become healthy."
-                            return 1
+                        set -eu
+                        project="${DEPLOY_PROJECT:-buy01}"
+                        state="/var/jenkins_home/deploy-secrets/$project"
+                        release_file="$state/last-successful-release"
+
+                        verify_release() {
+                            release="$1"
+                            manifest="$2"
+                            shift 2
+                            python3 scripts/nexus/images.py verify-deployment --release "$release" \\
+                                --manifest "$manifest" --project "$project" --env-file "$ENV_FILE" "$@"
                         }
-                        # ==================================
-                        # Check whole platform
-                        # ==================================
-                        health_check() {
-                            for SERVICE in product-mongodb media-mongodb user-mongodb order-mongodb \\
-                                kafka discovery user-service product-service media-service order-service gateway frontend; do
-                                CONTAINER_ID=$(APP_IMAGE_TAG="${BUILD_NUMBER}" docker compose \\
-                                    -p "${DEPLOY_PROJECT:-buy01}" --env-file "$ENV_FILE" \\
-                                    ps --all --quiet "$SERVICE") || return 1
-                                [ -n "$CONTAINER_ID" ] || { echo "Missing service: $SERVICE"; return 1; }
-                                check_container "$CONTAINER_ID" || return 1
-                            done
-                            return 0
-                        }
-                        # ==========================================
-                        # Check NEW release
-                        # ==========================================
-                        echo ""
-                        echo "================================"
-                        echo "Checking release #${BUILD_NUMBER}"
-                        echo "================================"
-                        if health_check; then
-                            echo ""
-                            echo "================================"
-                            echo "RELEASE HEALTHY"
-                            echo "Release #${BUILD_NUMBER}"
-                            echo "================================"
-                            # Save current release as last good release
-                            mkdir -p "$(dirname "$RELEASE_FILE")"
-                            echo "${BUILD_NUMBER}" > "$RELEASE_FILE"
-                            echo "Saved release #${BUILD_NUMBER} as last successful release."
+
+                        if [ "${DEPLOY_EXIT_STATUS:-1}" = 0 ] && verify_release "$BUILD_NUMBER" \\
+                            "reports/nexus/release-$BUILD_NUMBER.json" --record-in "$state"; then
+                            echo "RELEASE HEALTHY: #$BUILD_NUMBER"
                             exit 0
                         fi
-                        # ==========================================
-                        # New release failed
-                        # ==========================================
-                        echo ""
-                        echo "================================"
-                        echo "RELEASE FAILED"
-                        echo "Release #${BUILD_NUMBER}"
-                        echo "================================"
-                        # ==========================================
-                        # Check if a previous release exists
-                        # ==========================================
-                        if [ ! -f "$RELEASE_FILE" ]; then
-                            echo "No previous successful release exists."
-                            echo "Rollback cannot be performed."
+
+                        echo "RELEASE FAILED: #$BUILD_NUMBER"
+                        if [ ! -r "$release_file" ]; then
+                            echo "ROLLBACK FAILED: last successful release pointer is unavailable: $release_file"
                             exit 1
                         fi
-                        PREVIOUS_RELEASE=$(cat "$RELEASE_FILE")
-                        echo ""
-                        echo "Previous successful release: #$PREVIOUS_RELEASE"
-                        echo "Starting automatic rollback..."
-                        # ==========================================
-                        # Rollback deployment
-                        # ==========================================
-                        APP_IMAGE_TAG=$PREVIOUS_RELEASE \\
-                        docker compose \\
-                            -p "${DEPLOY_PROJECT:-buy01}" \\
-                            --env-file "$ENV_FILE" \\
-                            up -d
-                        echo ""
-                        echo "Rollback deployment started."
-                        echo "Checking rollback health..."
-                        # ==========================================
-                        # Verify rollback
-                        # ==========================================
-                        if health_check; then
-                            echo ""
-                            echo "================================"
-                            echo "ROLLBACK SUCCESSFUL"
-                            echo ""
-                            echo "Failed release: #${BUILD_NUMBER}"
-                            echo "Running release: #$PREVIOUS_RELEASE"
-                            echo "================================"
-                        else
-                            echo ""
-                            echo "================================"
-                            echo "ROLLBACK FAILED"
-                            echo ""
-                            echo "Manual intervention required."
-                            echo "================================"
+                        previous=$(cat "$release_file")
+                        case "$previous" in
+                            ''|0*|*[!0-9]*)
+                                echo "ROLLBACK FAILED: invalid last successful release pointer: $release_file"
+                                exit 1
+                                ;;
+                        esac
+                        previous_manifest="$state/releases/release-$previous.json"
+                        echo "Attempting rollback from #$BUILD_NUMBER to #$previous"
+                        if ! python3 scripts/nexus/images.py pull --release "$previous" --manifest "$previous_manifest"; then
+                            echo "ROLLBACK FAILED: could not restore images for #$previous after failed release #$BUILD_NUMBER"
+                            exit 1
                         fi
-                        # Important:
-                        # the current Jenkins build must remain FAILED
-                        # because the new release itself failed.
+                        if ! APP_IMAGE_TAG="$previous" docker compose -p "$project" \\
+                            --env-file "$ENV_FILE" up -d --pull never; then
+                            echo "ROLLBACK FAILED: Compose could not restore #$previous after failed release #$BUILD_NUMBER"
+                            exit 1
+                        fi
+                        if verify_release "$previous" "$previous_manifest"; then
+                            echo "ROLLBACK SUCCESSFUL: failed release #$BUILD_NUMBER, recovered release #$previous"
+                        else
+                            echo "ROLLBACK FAILED: #$previous failed health or image verification after failed release #$BUILD_NUMBER"
+                        fi
                         exit 1
                     '''
                 }
@@ -687,9 +722,15 @@ pipeline {
             }
         }
         always {
-            // Archive and publish JUnit test reports for all microservices
-            archiveArtifacts artifacts: '**/target/site/jacoco/**, frontend/coverage/frontend/**', allowEmptyArchive: true
-            junit testResults: '**/target/surefire-reports/*.xml', allowEmptyResults: true
+            script {
+                if (env.WORKSPACE) {
+                    archiveArtifacts artifacts: '**/target/site/jacoco/**, frontend/coverage/frontend/**', allowEmptyArchive: true
+                    archiveArtifacts artifacts: 'reports/nexus/*.json', allowEmptyArchive: true
+                    junit testResults: '**/target/surefire-reports/*.xml', allowEmptyResults: true
+                } else {
+                    echo 'Skipping report publication because the build workspace is unavailable.'
+                }
+            }
             echo 'Pipeline finished.'
         }
     }
