@@ -1,9 +1,41 @@
 # Nexus/Maven completion report
 
-Updated: 2026-11-17. Owner: **Anas**. The Nexus/Maven implementation is complete
-and verified on final localhost port 8081. The explicitly approved cutover
-completed successfully; the Nexus container was recreated with the same image
-and persistent volume.
+The original Nexus/Maven cutover was verified on 2026-11-17 at localhost port
+8081. The audit evidence below adds the local Jenkins validation from
+2026-11-26. The remaining sections retain the original cutover results.
+
+## Jenkins build 12 and rollback build 13
+
+Jenkins `first-pipeline` build **#12** passed 446 backend tests, 223 frontend
+tests, and all seven SonarQube Quality Gates. It published all six existing Maven
+JAR/POM pairs and verified their SHA-256 checksums. It also published all seven
+Docker images, verified them by digest, and deployed a healthy staging release.
+Both audit builds used Jenkins Replay with the local working tree.
+
+![Jenkins build 12 console excerpt showing tests, publishing, and a healthy successful deployment](images/nexus/jenkins-pipeline-success.png)
+
+*Selected lines from the original build #12 console show the test results,
+publishing stages and final `SUCCESS`.*
+
+![Jenkins build 12 SonarQube console excerpt with all seven project gate results marked OK](images/nexus/sonarqube-quality-gates.png)
+
+*The build #12 console records the project key and SonarQube's `OK` result for
+each of the seven projects.*
+
+Build **#13** deliberately stopped only the new staging frontend after deployment.
+The test removed the seven previous local Compose tags while leaving image layers
+and registry references in place. Jenkins read the release #12 manifest, pulled
+all seven pinned images, restored their local tags, and verified the running
+image IDs and health of the recovered deployment. Build #13 finished
+`FAILURE`, and release #12 remained the last successful release.
+
+![Jenkins build 13 console excerpt showing a controlled failure and successful recovery of release 12](images/nexus/jenkins-rollback.png)
+
+*Selected lines from the original build #13 console show the stopped frontend,
+the recovery pulls, and `ROLLBACK SUCCESSFUL` followed by `Finished: FAILURE`.*
+
+See the [Maven publishing example](NEXUS_MAVEN_RUNBOOK.md#jenkins-maven-publishing)
+and the [manifest and recovery commands](NEXUS_DOCKER_CI_RUNBOOK.md#7-roll-back-and-troubleshoot).
 
 ## Verified results
 

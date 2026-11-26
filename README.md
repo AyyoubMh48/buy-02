@@ -482,10 +482,12 @@ python3 scripts/nexus/manage.py verify-config
 
 ### 3. Publish, retrieve and verify Maven artifacts
 
-Load the existing Buy02 application environment if needed for the tests. The
-publishing script runs the Maven builds and tests with `nexus/maven/settings.xml`.
-That file directs dependency and plugin requests through `maven-public`. Use an
-empty local Maven cache to demonstrate dependency downloads through Nexus.
+On eligible main builds, Jenkins publishes the existing backend JARs and
+original POMs with Maven's `deploy-file` goal after the SonarQube Quality Gates.
+For manual publishing, load the Buy02 application environment if needed for
+tests. `manage.py publish` builds and tests the services using
+`nexus/maven/settings.xml`. Use an empty local Maven cache to demonstrate
+dependency downloads through `maven-public`.
 
 ```bash
 export NEXUS_MAVEN_CACHE="$(mktemp -d)"
@@ -560,9 +562,12 @@ that tests and quality gates pass before publishing. Confirm that Nexus contains
 the Maven JARs and all seven Docker images, including the frontend, and that
 Jenkins archives the release manifest. Check that staging becomes healthy.
 
-### 6. Capture the results
+### 6. View the audit evidence
 
-Take screenshots of the Maven repositories, two published Maven versions, a
-cached dependency, Docker tags and the successful Jenkins publishing stages.
-Include the commands and results for retrieving the older Maven version and
-pulling images by digest. Keep credentials out of screenshots.
+The [completion report](docs/NEXUS_COMPLETION_REPORT.md#jenkins-build-12-and-rollback-build-13)
+documents the successful Jenkins build #12, its seven SonarQube Quality Gates,
+and the controlled build #13 that recovered release #12. The
+[Maven runbook](docs/NEXUS_MAVEN_RUNBOOK.md#repository-layout-and-access)
+and [Docker CI runbook](docs/NEXUS_DOCKER_CI_RUNBOOK.md#4-build-publish-and-verify-images)
+show the live Nexus inventories and commands for publishing, inspecting,
+and retrieving releases.

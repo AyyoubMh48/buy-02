@@ -124,12 +124,18 @@ The proxy preserves the original host and forwarded protocol for this purpose.
 
 ## 4. Build, publish and verify images
 
-Build and test Maven services with Anas's settings. If using the local CA, Maven
-needs its own Java truststore in addition to the Python CA bundle:
+![Nexus Docker registry browser showing the seven Buy02 images and published frontend tags](images/nexus/nexus-docker-images.png)
+
+*The live `docker-hosted` tree shows the seven application image names and
+example frontend tags from builds #12 and #13. Older tag rows were omitted
+from the capture. Read-only Nexus queries also confirmed all seven build-12 tags.*
+
+For a manual publication, use the Maven settings and build the images from
+the resulting JARs. If using the local CA, Maven needs its own Java truststore
+in addition to the Python CA bundle:
 
 ```bash
 export MAVEN_OPTS="${MAVEN_OPTS:-} -Djavax.net.ssl.trustStore=$NEXUS_TLS_DIR/java-cacerts -Djavax.net.ssl.trustStorePassword=changeit"
-python3 scripts/nexus/manage.py build all
 python3 scripts/nexus/manage.py publish all
 python3 scripts/nexus/images.py build --source-tag local-1
 release_tag=$(python3 scripts/nexus/images.py tag --build 1)
@@ -138,9 +144,9 @@ python3 scripts/nexus/images.py publish --source-tag local-1 --tag "$release_tag
 ```
 
 Gateway builds/tests require the existing application environment as described
-in the root README. A successful `publish all` already builds/tests the services;
-the separate build command is useful for diagnosing a new setup. Do not skip tests
-to obtain a successful publication result.
+in the root README. `publish all` builds and tests the services before upload.
+For build-only diagnostics, run `python3 scripts/nexus/manage.py build all` on
+its own.
 
 Images are named `REGISTRY/buy02/SERVICE:VERSION-gCOMMIT-bBUILD`, for example
 `nexus.buy02.test:5443/buy02/product-service:0.0.1-SNAPSHOT-g0123456789ab-b1`.
@@ -159,6 +165,29 @@ after successful uploads, retain the manifest and retry `pull`; do not republish
 the same immutable tags. Publishing across services is not atomic: earlier
 uploads may remain if a later upload fails. Inspect logs and choose a new release
 tag when resuming an incomplete upload.
+
+For example, Jenkins build 12 passed its build number as the local tag, used
+`images.py tag` to generate the Nexus release tag, then invoked the equivalent
+of these commands after the images were built. Use a fresh build number for a
+new publication. Build 12's registry tags already exist.
+
+```bash
+release_tag=$(python3 scripts/nexus/images.py tag --build "$BUILD_NUMBER")
+python3 scripts/nexus/images.py publish --source-tag "$BUILD_NUMBER" \
+  --tag "$release_tag" --include-frontend \
+  --manifest "reports/nexus/release-$BUILD_NUMBER.json"
+```
+
+Inspect a copy of the original manifest downloaded from the build's artifacts:
+
+```bash
+jq '{source_tag, images: [.images[] | {service, digest, image_id}]}' \
+  reports/nexus/release-12.json
+```
+
+The registry digest selects the immutable image manifest to pull. The image ID
+is the local Docker ID the helper compares with the pulled image and the
+running container.
 
 ## 5. Connect Jenkins and configure credentials
 
@@ -238,18 +267,24 @@ Maven dependency/plugin resolution now uses the Nexus mirror throughout the main
 pipeline. All existing tests and Sonar gates precede publishing. On main, excluding
 PR and scheduled runs, Jenkins:
 
-1. Publishes all six Maven artifacts using Anas's script, with tests enabled.
+1. Publishes the six JARs from Package Backend with their original POMs using
+   Maven `deploy-file`. It verifies hosted and reader downloads against the
+   local SHA-256 hashes before proceeding.
 2. Builds all seven images (six backend services plus the frontend).
-3. Pushes images, pulls/verifies them as the reader and archives a release manifest.
-4. Deploys the retrieved images using the existing staging tags and health checks.
+3. Pushes images, pulls and verifies them as the reader, and archives a release manifest.
+4. Deploys the verified local tags with Compose. After all services are healthy
+   and the seven running application image IDs match the manifest, Jenkins
+   saves the manifest and records the release as successful.
 
 Build/test/gate/publishing failures stop subsequent stages. Publisher credentials
 are bound only during their respective stages. A tag/digest mismatch prevents
-deployment. Staging uses the existing Compose configuration: the verified digest
-pull is retagged locally with the Jenkins build number, so the existing rollback
-mechanism can keep selecting prior build numbers.
+deployment. Staging uses the existing Compose configuration. The verified digest
+pull is retagged locally with the Jenkins build number. Jenkins checks for exactly
+one expected packaged JAR in each backend build context before Docker builds.
 
-Before marking the integration complete, capture actual evidence for:
+The [completion report](NEXUS_COMPLETION_REPORT.md#jenkins-build-12-and-rollback-build-13)
+records local publishing, deployment and rollback evidence. When validating a
+separate installation, also check:
 
 - Provisioning twice produces no further configuration changes.
 - All six JARs and six backend images are published; the frontend also publishes
@@ -260,20 +295,40 @@ Before marking the integration complete, capture actual evidence for:
 - Two different releases have distinct manifests; retrieving the earlier manifest
   restores the earlier image IDs and staging passes health/API checks.
 
-## 7. Retrieve a previous release and troubleshoot
+## 7. Roll back and troubleshoot
 
-Download the desired `reports/nexus/release-BUILD.json` from Jenkins artifacts.
-Use the Docker reader credentials, then:
+Successful releases have an immutable manifest in
+`/var/jenkins_home/deploy-secrets/<project>/releases/release-BUILD.json`.
+Jenkins stores these manifests on its persistent volume with mode 0600 and
+updates the adjacent `last-successful-release` file atomically after health
+and image identity checks. Build artifacts also retain the publishing evidence.
+
+If Compose deployment fails, or any service fails health or image identity
+checks, Jenkins reads the last successful release number and its durable
+manifest. It uses the Nexus reader credential to pull all seven previous images
+by digest, verifies the image IDs, restores the local tags, and runs Compose on
+the same project. It checks health and running application image IDs again.
+The failed build remains failed even after recovery. A missing manifest,
+unavailable digest, or verification error stops recovery and appears in the
+build log. Recovery uses the current Compose configuration and does not restore
+historical database contents or configuration.
+
+For manual recovery, use the durable manifest or download the original
+`reports/nexus/release-BUILD.json` from Jenkins artifacts. For example, from the
+repository root with the existing Docker reader credentials and TLS configured:
 
 ```bash
-python3 scripts/nexus/images.py pull --manifest reports/nexus/release-OLD_BUILD.json
+python3 scripts/nexus/images.py pull --release 12 --manifest reports/nexus/release-12.json
 ```
 
-This retrieves pinned images and restores `SERVICE:OLD_BUILD` tags. It does not
+This retrieves pinned images and restores `SERVICE:12` tags. It does not
 change running containers. Deploy that build through the existing staging Compose
 procedure in the root README, selecting its `APP_IMAGE_TAG`, then check container
-health and the real catalog API. Never edit the archived manifest to choose a
-different digest. Keep previous manifests for traceability.
+health and the running image IDs using `images.py verify-deployment` with the
+same release and manifest. For a legacy release with only a Jenkins archive,
+an operator can import that original manifest using `verify-deployment
+--record-in` after matching it against a healthy deployment of that release.
+Keep the original image identities and digest references.
 
 | Failure | Action |
 | --- | --- |

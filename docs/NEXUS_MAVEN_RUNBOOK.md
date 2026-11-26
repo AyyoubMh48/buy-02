@@ -18,6 +18,12 @@ remain intact on the host as a rollback option.
 
 ## Start, stop and inspect
 
+![Live Sonatype Nexus Repository Manager dashboard showing Maven and Docker repositories online](images/nexus/nexus-dashboard.png)
+
+*The local Nexus dashboard loaded and reported five Maven repositories and one
+Docker repository online. The separate system-health card shows one unhealthy
+check, so this capture is evidence of availability.*
+
 Use the existing restored volume. Do not create an empty volume or restore over
 the live volume. From the repository root:
 
@@ -129,6 +135,17 @@ HTTP and does not log credentials or response bodies.
 | `maven-central` | Proxy | Maven Central dependency cache |
 | `maven-public` | Group | Read endpoint combining both hosted repositories and proxy |
 
+![Nexus Repositories view with Maven hosted, proxy and group entries and the hosted Docker registry](images/nexus/nexus-repositories.png)
+
+*The live repository list shows `maven-snapshots`, `maven-releases`,
+`maven-central`, `maven-public`, and `docker-hosted` online.*
+
+For example, Maven reads a project dependency or plugin from `maven-public`.
+When a dependency comes from Maven Central, the group routes it through the
+`maven-central` proxy. The publisher uploads `0.0.1-SNAPSHOT` to
+`maven-snapshots` and a stable version such as `0.1.0` to
+`maven-releases`. Consumers can resolve either version through the same group.
+
 The Maven reader role should have browse/read on `maven-public`. The publisher
 inherits reader and has browse/read/add/edit on the two hosted repositories;
 it must not have delete or administration privileges. `verify-config` checks
@@ -138,6 +155,12 @@ a new instance or recheck after an approved cutover.
 
 ## Build, publish, retrieve and cache
 
+![Nexus Maven snapshots browser with six artifacts expanded to version 0.0.1-SNAPSHOT](images/nexus/nexus-maven-artifacts.png)
+
+*The expanded live browse tree shows the six backend artifacts at
+`0.0.1-SNAPSHOT`, including `com.buy-01:media`. Metadata rows were omitted
+from the capture so the six version folders are visible together.*
+
 `nexus/maven/settings.xml` mirrors dependency/plugin resolution through
 `maven-public` and defines separate deployment server IDs for releases and
 snapshots. It reads credentials from environment variables. Run the existing
@@ -145,7 +168,6 @@ tooling from the repository root after loading the private file:
 
 ```bash
 python3 scripts/nexus/manage.py audit
-python3 scripts/nexus/manage.py build all
 python3 scripts/nexus/manage.py publish all
 python3 scripts/nexus/manage.py verify-artifact discovery --local
 python3 scripts/nexus/manage.py resolve discovery
@@ -154,12 +176,14 @@ python3 scripts/nexus/manage.py verify-access
 ```
 
 There are six Maven services: discovery, gateway, user-service, product-service,
-media-service and order-service. `publish all` builds/tests and publishes their
-existing POM coordinates, then downloads hosted JAR/POM files and verifies
-SHA-256. Current project versions must be SNAPSHOT versions for the snapshots
-repository. Never edit POMs as part of Nexus deployment or overwrite immutable
-release coordinates. Before publishing, verify each coordinate is a SNAPSHOT
-and inspect the authenticated artifact inventory. A successful command and
+media-service and order-service. The manual `publish all` command builds, tests
+and publishes their existing POM coordinates, then downloads hosted JAR/POM
+files and verifies SHA-256. For build-only diagnostics, run
+`python3 scripts/nexus/manage.py build all` on its own.
+Set `MAVEN_BIN` to use an installed Maven for manual commands.
+Versions ending in `-SNAPSHOT` go to the snapshots repository. Stable versions
+go to the immutable releases repository. Before publishing, inspect the
+coordinates and the authenticated artifact inventory. A successful command and
 server-side artifact/checksum verification are required before reporting a
 service as published.
 
@@ -172,6 +196,18 @@ delete the prior release.
 
 Authenticated publishing, artifact downloads/checksums, cache and RBAC passed
 on the current instance. Do not republish solely to recheck stored artifacts.
+
+To resolve an existing artifact through the Nexus group without publishing,
+run this from the repository root with the existing Maven reader credentials
+and Java truststore configured:
+
+```bash
+python3 scripts/nexus/manage.py resolve discovery --version 0.0.1-SNAPSHOT
+```
+
+The helper invokes Maven's `dependency:get` with the repository settings.
+For a cache audit that demonstrates server-side storage, see the `cache`
+command above.
 
 ## Backup, restore and troubleshooting
 
@@ -258,7 +294,7 @@ and set `export NEXUS_URL=http://127.0.0.1:8081`
 in the shell; do not replace the private file automatically. Use the same
 settings and commands for either port.
 
-## Teammate CI handoff
+## Jenkins Maven publishing
 
 Base URL: `http://127.0.0.1:8081` on the Nexus host. Artifact
 endpoints append `/repository/maven-public/`, `/repository/maven-releases/`,
@@ -268,17 +304,28 @@ an authenticated TLS endpoint or SSH tunnel without changing this loopback bind.
 
 CI configuration names: `NEXUS_URL`, `NEXUS_READ_USERNAME`,
 `NEXUS_READ_PASSWORD`, `NEXUS_PUBLISH_USERNAME`, `NEXUS_PUBLISH_PASSWORD`.
-Store passwords in the CI credential store; never give CI admin credentials.
-Optional `MAVEN_BIN` selects installed Maven instead of the unchanged wrappers.
+Store passwords in the CI credential store and reserve administrator access
+for provisioning. On eligible main builds, Jenkins uses the Maven wrappers
+to upload the already-packaged JARs and original POMs with `deploy-file`.
+For example, the discovery SNAPSHOT invocation from `discovery/` is equivalent
+to the following. Run it only when an upload is intended. Jenkins supplies
+the publisher credentials through its credential store.
 
 ```bash
-python3 scripts/nexus/manage.py build all
-python3 scripts/nexus/manage.py publish all
-python3 scripts/nexus/manage.py resolve discovery --version 0.0.1-SNAPSHOT
+bash ./mvnw -B -ntp -s ../nexus/maven/settings.xml \
+  org.apache.maven.plugins:maven-deploy-plugin:3.1.4:deploy-file \
+  -DrepositoryId=nexus-snapshots -Durl="$NEXUS_URL/repository/maven-snapshots/" \
+  -DgroupId=com.buy01 -DartifactId=discovery -Dversion=0.0.1-SNAPSHOT \
+  -Dpackaging=jar -Dfile=target/discovery-0.0.1-SNAPSHOT.jar \
+  -DpomFile=pom.xml -DgeneratePom=false
 ```
 
-Application Docker images, image publishing/retrieval and CI pipeline integration
-are the teammate's responsibility. This task does not edit those files.
+The goal uploads the JAR from Package Backend alongside the original POM.
+Jenkins uses the hosted snapshot metadata to find the timestamped filenames,
+then compares both hosted and group downloads with the local SHA-256 hashes.
+
+See the [Docker and CI runbook](NEXUS_DOCKER_CI_RUNBOOK.md#6-pipeline-behavior-and-acceptance)
+for the sequence of quality gates, artifact publishing, and deployment.
 
 ## Deferred encryption warning
 
